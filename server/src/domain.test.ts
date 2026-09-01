@@ -25,6 +25,23 @@ test("caps movement by server elapsed time and world bounds", () => {
   assert.equal(applyCommand(state, { seq: 2, action: "move", direction: 1 }, 5250).state.player.x, 2384);
 });
 
+test("jump is server-owned, advances vertical position, and rejects airborne repeats", () => {
+  const initial = createInitialState(1000);
+  const jump = applyCommand(initial, { seq: 1, action: "jump" }, 1100);
+  assert.equal(jump.ok, true);
+  assert.equal(jump.state.player.y, 406);
+  assert.equal(jump.state.player.vy, -520);
+  assert.deepEqual(jump.events[0], { type: "jump", x: 180, y: 406 });
+  const airborne = applyCommand(jump.state, { seq: 2, action: "move", direction: 0 }, 1180);
+  assert.equal(airborne.ok, true);
+  assert.ok(airborne.state.player.y < 406);
+  assert.ok(airborne.state.player.vy < 0);
+  const repeated = applyCommand(airborne.state, { seq: 3, action: "jump" }, 1260);
+  assert.equal(repeated.ok, false);
+  assert.equal(repeated.code, "jump_airborne");
+  assert.equal(repeated.state.lastSeq, 2);
+});
+
 test("server selects range-valid target and computes canonical damage", () => {
   const initial = createInitialState(1000);
   const tooFar = applyCommand(initial, { seq: 1, action: "attack" }, 2000);

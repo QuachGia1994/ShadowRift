@@ -150,10 +150,19 @@ func _add_combat_nodes() -> void:
 	add_child(_hitbox)
 
 func _draw() -> void:
-	draw_colored_polygon(PackedVector2Array([Vector2(-28.0, 22.0), Vector2(-23.0, -38.0), Vector2(0.0, -55.0), Vector2(25.0, -37.0), Vector2(30.0, 22.0)]), Color(0.13, 0.10, 0.17))
-	draw_polygon(PackedVector2Array([Vector2(-25.0, -36.0), Vector2(-41.0, -54.0), Vector2(-19.0, -46.0)]), PackedColorArray([Color(0.41, 0.14, 0.18)]))
-	draw_polygon(PackedVector2Array([Vector2(25.0, -36.0), Vector2(41.0, -54.0), Vector2(19.0, -46.0)]), PackedColorArray([Color(0.41, 0.14, 0.18)]))
-	draw_circle(Vector2(-8.0, -29.0), 3.0, Color(0.94, 0.16, 0.25))
-	draw_circle(Vector2(8.0, -29.0), 3.0, Color(0.94, 0.16, 0.25))
+	var pulse := (sin(float(Time.get_ticks_msec()) * 0.006) + 1.0) * 0.5
+	draw_colored_polygon(PackedVector2Array([Vector2(-42.0, 27.0), Vector2(42.0, 27.0), Vector2(30.0, 34.0), Vector2(-30.0, 34.0)]), Color(0.0, 0.0, 0.0, 0.34))
+	draw_circle(Vector2.ZERO, 54.0, Color(0.62, 0.08, 0.20, 0.025 + pulse * 0.025))
+	draw_colored_polygon(PackedVector2Array([Vector2(-31.0, 23.0), Vector2(-25.0, -39.0), Vector2(0.0, -59.0), Vector2(27.0, -38.0), Vector2(32.0, 23.0)]), Color(0.10, 0.075, 0.14))
+	draw_colored_polygon(PackedVector2Array([Vector2(-25.0, 18.0), Vector2(-19.0, -34.0), Vector2(0.0, -49.0), Vector2(20.0, -33.0), Vector2(26.0, 18.0)]), Color(0.20, 0.11, 0.19))
+	draw_colored_polygon(PackedVector2Array([Vector2(-24.0, -37.0), Vector2(-47.0, -58.0), Vector2(-21.0, -50.0)]), Color(0.46, 0.09, 0.16))
+	draw_colored_polygon(PackedVector2Array([Vector2(24.0, -37.0), Vector2(47.0, -58.0), Vector2(21.0, -50.0)]), Color(0.46, 0.09, 0.16))
+	draw_circle(Vector2(-8.0, -30.0), 3.2 + pulse * 0.8, Color(0.98, 0.12, 0.24))
+	draw_circle(Vector2(8.0, -30.0), 3.2 + pulse * 0.8, Color(0.98, 0.12, 0.24))
+	draw_line(Vector2(-23.0, -4.0), Vector2(-38.0, 17.0), Color(0.52, 0.16, 0.22), 7.0)
+	draw_line(Vector2(23.0, -4.0), Vector2(38.0, 17.0), Color(0.52, 0.16, 0.22), 7.0)
 	if state == State.WINDUP:
-		draw_arc(Vector2.ZERO, 46.0, 0.0, TAU, 30, Color(0.84, 0.16, 0.29, 0.78), 4.0)
+		draw_arc(Vector2.ZERO, 48.0, 0.0, TAU, 36, Color(0.90, 0.12, 0.28, 0.82), 5.0)
+		draw_arc(Vector2.ZERO, 58.0, 0.0, TAU, 36, Color(0.70, 0.18, 0.50, 0.25), 3.0)
+	elif state == State.STRIKE:
+		draw_arc(Vector2(_attack_direction * 24.0, -4.0), 42.0, -1.1 if _attack_direction > 0.0 else 2.0, 1.15 if _attack_direction > 0.0 else 4.3, 24, Color(1.0, 0.28, 0.34, 0.82), 7.0)

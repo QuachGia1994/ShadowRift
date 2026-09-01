@@ -189,14 +189,40 @@ func _create_zone() -> void:
 	add_child(zone)
 
 func _draw() -> void:
-	draw_rect(Rect2(0.0, 0.0, WORLD_WIDTH, 540.0), Color(0.025, 0.035, 0.07))
+	var sky_top := Color(0.012, 0.020, 0.050)
+	var sky_bottom := Color(0.040, 0.055, 0.105)
+	draw_rect(Rect2(0.0, 0.0, WORLD_WIDTH, 540.0), sky_top)
+	for band in range(6):
+		var t := float(band + 1) / 6.0
+		var band_color := sky_top.lerp(sky_bottom, t)
+		draw_rect(Rect2(0.0, float(band) * 90.0, WORLD_WIDTH, 92.0), Color(band_color.r, band_color.g, band_color.b, 0.90))
+	var moon_center := Vector2(790.0, 105.0)
+	draw_circle(moon_center, 58.0, Color(0.34, 0.38, 0.52, 0.08))
+	draw_circle(moon_center, 42.0, Color(0.68, 0.71, 0.82, 0.10))
+	draw_arc(moon_center, 42.0, -1.25, 1.65, 42, Color(0.60, 0.66, 0.86, 0.22), 2.0)
+	for x in range(60, int(WORLD_WIDTH), 135):
+		var star_y := 48.0 + fmod(float(x * 37), 175.0)
+		var star_radius := 1.2 + fmod(float(x), 3.0) * 0.35
+		draw_circle(Vector2(float(x), star_y), star_radius, Color(0.54, 0.72, 0.82, 0.34))
 	for layer_index in range(4):
-		var layer_color := Color(0.07 + layer_index * 0.015, 0.08 + layer_index * 0.012, 0.13 + layer_index * 0.018)
-		var base_y := 230.0 + layer_index * 48.0
+		var layer_color := Color(0.055 + layer_index * 0.020, 0.065 + layer_index * 0.018, 0.115 + layer_index * 0.026)
+		var base_y := 225.0 + layer_index * 52.0
 		var points := PackedVector2Array([Vector2(0.0, 540.0)])
 		for x in range(0, int(WORLD_WIDTH) + 160, 160):
-			points.append(Vector2(x, base_y + sin(float(x) * 0.009 + layer_index) * 65.0))
+			var ridge := sin(float(x) * (0.0065 + layer_index * 0.0007) + float(layer_index)) * (58.0 - layer_index * 5.0)
+			var detail := sin(float(x) * 0.014 + float(layer_index) * 1.7) * 18.0
+			points.append(Vector2(float(x), base_y + ridge + detail))
 		points.append(Vector2(WORLD_WIDTH, 540.0))
 		draw_colored_polygon(points, layer_color)
-	for x in range(70, int(WORLD_WIDTH), 280):
-		draw_circle(Vector2(x, 360.0 + sin(float(x)) * 24.0), 3.0, Color(0.22, 0.68, 0.62, 0.55))
+	var horizon_y := 382.0
+	draw_rect(Rect2(0.0, horizon_y, WORLD_WIDTH, 2.0), Color(0.18, 0.42, 0.42, 0.12))
+	for x in range(70, int(WORLD_WIDTH), 245):
+		var mote_y := 335.0 + sin(float(x) * 0.021) * 38.0
+		draw_circle(Vector2(float(x), mote_y), 2.6, Color(0.18, 0.72, 0.68, 0.42))
+		draw_circle(Vector2(float(x), mote_y), 6.5, Color(0.18, 0.72, 0.68, 0.055))
+	var rift_x := 1810.0
+	for segment in range(5):
+		var y0 := 115.0 + float(segment) * 34.0
+		var sway := sin(float(segment) * 1.7) * 9.0
+		draw_line(Vector2(rift_x + sway, y0), Vector2(rift_x - sway * 0.6, y0 + 30.0), Color(0.48, 0.20, 0.74, 0.22), 3.0)
+		draw_line(Vector2(rift_x + sway, y0), Vector2(rift_x - sway * 0.6, y0 + 30.0), Color(0.36, 0.72, 0.84, 0.10), 8.0)

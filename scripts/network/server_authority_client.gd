@@ -6,7 +6,7 @@ signal server_events_received(events: Array)
 signal connection_state_changed(state: String, detail: String)
 
 const SESSION_PATH := "user://server_session.cfg"
-const MOVE_INTERVAL := 0.10
+const MOVE_INTERVAL := 0.08
 const SERVER_URL_SETTING := "shadow_rift/server/base_url"
 const RETRY_BASE_DELAY := 1.0
 const RETRY_MAX_DELAY := 30.0
@@ -57,7 +57,13 @@ func is_online() -> bool:
 	return phase == Phase.ONLINE
 
 func set_move_direction(direction: int) -> void:
-	_move_direction = clampi(direction, -1, 1)
+	var next_direction := clampi(direction, -1, 1)
+	if next_direction == _move_direction:
+		return
+	_move_direction = next_direction
+	_move_time = MOVE_INTERVAL
+	if is_online():
+		_enqueue({"action": "move", "direction": _move_direction})
 
 func submit_action(action: String, fields: Dictionary = {}) -> bool:
 	if not is_online() or action not in ["jump", "attack", "skill", "equip", "sync"]:

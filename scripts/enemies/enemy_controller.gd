@@ -166,11 +166,20 @@ func _add_combat_nodes() -> void:
 	add_child(_hitbox)
 
 func _draw() -> void:
+	var pulse := (sin(float(Time.get_ticks_msec()) * 0.008) + 1.0) * 0.5
 	if kind == Kind.WARDEN:
-		draw_rect(Rect2(-16.0, -32.0, 32.0, 50.0), Color(0.18, 0.20, 0.25))
-		draw_rect(Rect2(-19.0, -38.0, 38.0, 12.0), Color(0.38, 0.12, 0.16))
-		draw_line(Vector2(-24.0, -18.0), Vector2(24.0, 9.0), Color(0.63, 0.66, 0.67), 5.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(-24.0, 19.0), Vector2(24.0, 19.0), Vector2(17.0, 24.0), Vector2(-17.0, 24.0)]), Color(0.0, 0.0, 0.0, 0.28))
+		draw_colored_polygon(PackedVector2Array([Vector2(-17.0, -27.0), Vector2(17.0, -27.0), Vector2(20.0, 14.0), Vector2(-20.0, 14.0)]), Color(0.08, 0.10, 0.15))
+		draw_colored_polygon(PackedVector2Array([Vector2(-13.0, -24.0), Vector2(13.0, -24.0), Vector2(15.0, 12.0), Vector2(-15.0, 12.0)]), Color(0.23, 0.25, 0.31))
+		draw_rect(Rect2(-19.0, -38.0, 38.0, 11.0), Color(0.42, 0.08, 0.13))
+		draw_colored_polygon(PackedVector2Array([Vector2(-14.0, -39.0), Vector2(0.0, -49.0), Vector2(14.0, -39.0)]), Color(0.16, 0.17, 0.22))
+		draw_circle(Vector2(7.0, -32.0), 2.4 + pulse * 0.7, Color(0.98, 0.18, 0.22, 0.95))
+		draw_line(Vector2(-25.0, -14.0), Vector2(24.0, 13.0), Color(0.74, 0.78, 0.82), 5.0)
+		draw_line(Vector2(-27.0, -16.0), Vector2(-20.0, -20.0), Color(0.93, 0.79, 0.48), 3.0)
 	else:
-		draw_colored_polygon(PackedVector2Array([Vector2(0.0, -39.0), Vector2(18.0, -10.0), Vector2(11.0, 20.0), Vector2(-13.0, 20.0), Vector2(-19.0, -10.0)]), Color(0.20, 0.12, 0.31))
-		draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 18, Color(0.36, 0.77, 0.86, 0.58), 3.0)
-		draw_circle(Vector2(5.0, -19.0), 3.0, Color(0.43, 0.91, 0.96))
+		var float_offset := sin(float(Time.get_ticks_msec()) * 0.006) * 3.0
+		draw_circle(Vector2(0.0, 13.0), 25.0, Color(0.23, 0.68, 0.78, 0.035 + pulse * 0.025))
+		draw_colored_polygon(PackedVector2Array([Vector2(0.0, -42.0 + float_offset), Vector2(19.0, -13.0 + float_offset), Vector2(13.0, 20.0 + float_offset), Vector2(0.0, 14.0 + float_offset), Vector2(-15.0, 21.0 + float_offset), Vector2(-20.0, -13.0 + float_offset)]), Color(0.24, 0.11, 0.35, 0.94))
+		draw_arc(Vector2(0.0, -9.0 + float_offset), 20.0, 0.0, TAU, 24, Color(0.30, 0.78, 0.88, 0.45 + pulse * 0.18), 3.0)
+		draw_circle(Vector2(5.0, -22.0 + float_offset), 3.0, Color(0.48, 0.94, 1.0))
+		draw_circle(Vector2(5.0, -22.0 + float_offset), 7.0, Color(0.36, 0.82, 0.94, 0.10))

@@ -26,6 +26,7 @@ export interface GameState {
   player: {
     x: number;
     y: number;
+    vy: number;
     hp: number;
     maxHp: number;
     mana: number;
@@ -81,8 +82,11 @@ const ACTION_COOLDOWN_MS = Object.freeze({ attack: 240, skill1: 420, skill2: 700
 const ACTION_RANGE = Object.freeze({ attack: 96, skill1: 112, skill2: 760 });
 const WORLD_MIN_X = 16;
 const WORLD_MAX_X = 2384;
+const GROUND_Y = 406;
 const MAX_MOVE_ELAPSED_MS = 250;
 const MOVE_SPEED_PER_SECOND = 250;
+const GRAVITY_PER_SECOND = 1400;
+const JUMP_SPEED_PER_SECOND = -520;
 
 export function createInitialState(now: number): GameState {
   const state: GameState = {
@@ -91,7 +95,8 @@ export function createInitialState(now: number): GameState {
     updatedAt: now,
     player: {
       x: 180,
-      y: 406,
+      y: GROUND_Y,
+      vy: 0,
       hp: 108,
       maxHp: 108,
       mana: 100,
@@ -152,6 +157,8 @@ export function applyCommand(input: GameState, command: Command, now: number): C
     return { ok: false, code: "player_dead", state: input, events };
   }
 
+  advanceVertical(state, now - state.updatedAt);
+
   let accepted = true;
   let code = "accepted";
   switch (command.action) {
@@ -161,9 +168,16 @@ export function applyCommand(input: GameState, command: Command, now: number): C
       state.player.x = round2(clamp(state.player.x + distance, WORLD_MIN_X, WORLD_MAX_X));
       break;
     }
-    case "jump":
-      events.push({ type: "jump", x: state.player.x });
+    case "jump": {
+      if (state.player.y < GROUND_Y - 0.5 || Math.abs(state.player.vy) > 0.5) {
+        accepted = false;
+        code = "jump_airborne";
+        break;
+      }
+      state.player.vy = JUMP_SPEED_PER_SECOND;
+      events.push({ type: "jump", x: state.player.x, y: state.player.y });
       break;
+    }
     case "attack":
       ({ accepted, code } = resolveAttack(state, "attack", now, events));
       break;
@@ -185,6 +199,21 @@ export function applyCommand(input: GameState, command: Command, now: number): C
   state.revision += 1;
   state.updatedAt = now;
   return { ok: true, code, state, events };
+}
+
+function advanceVertical(state: GameState, elapsedMs: number): void {
+  const elapsed = Math.min(MAX_MOVE_ELAPSED_MS, Math.max(0, elapsedMs)) / 1000;
+  if (elapsed <= 0) return;
+  let y = Number.isFinite(state.player.y) ? state.player.y : GROUND_Y;
+  let velocity = Number.isFinite(state.player.vy) ? state.player.vy : 0;
+  y += velocity * elapsed + 0.5 * GRAVITY_PER_SECOND * elapsed * elapsed;
+  velocity += GRAVITY_PER_SECOND * elapsed;
+  if (y >= GROUND_Y) {
+    y = GROUND_Y;
+    velocity = 0;
+  }
+  state.player.y = round2(y);
+  state.player.vy = round2(velocity);
 }
 
 function resolveEnemyAttacks(state: GameState, now: number, events: CommandResult["events"]): void {

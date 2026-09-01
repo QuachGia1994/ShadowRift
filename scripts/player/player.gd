@@ -11,6 +11,7 @@ const MOVE_SPEED := 250.0
 const JUMP_SPEED := -520.0
 const ATTACK_DURATION := 0.22
 const COMBO_GRACE := 0.34
+const SERVER_GROUND_Y := 406.0
 
 var state := State.IDLE
 var facing := 1.0
@@ -36,6 +37,7 @@ var _server_authority_enabled := OS.has_feature("server_authoritative")
 var _server_client: ServerAuthorityClient
 var _server_snapshot: Dictionary = {}
 var _server_animation_time := 0.0
+var _visual_time := 0.0
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
@@ -60,6 +62,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_key_actions[&"skill_two"] = true
 
 func _physics_process(delta: float) -> void:
+	_visual_time += delta
 	if _server_authority_enabled:
 		_process_server_authority(delta)
 		return
@@ -226,6 +229,8 @@ func apply_server_snapshot(player: Dictionary) -> void:
 	_dead = _health.current <= 0
 	if _dead:
 		_set_state(State.DEATH)
+	elif global_position.y < SERVER_GROUND_Y - 0.5:
+		_set_state(State.JUMP)
 	var stats := _profile.get_stats()
 	_server_snapshot = {
 		"health": _health.current,
@@ -285,6 +290,8 @@ func _process_server_authority(delta: float) -> void:
 		_server_client.submit_action("attack")
 		_set_state(State.ATTACK)
 		_server_animation_time = ATTACK_DURATION
+	elif float(_server_snapshot.get("health", 1)) > 0.0 and global_position.y < SERVER_GROUND_Y - 0.5:
+		_set_state(State.JUMP)
 	elif _server_animation_time <= 0.0:
 		_set_state(State.MOVE if move_direction != 0 else State.IDLE)
 	queue_redraw()
@@ -322,7 +329,7 @@ func _attack_pressed() -> bool:
 	return _consume_key_action(&"attack") or (is_instance_valid(_controls) and _controls.consume_action(&"attack"))
 
 func _jump_pressed() -> bool:
-	return _consume_key_action(&"jump")
+	return _consume_key_action(&"jump") or (is_instance_valid(_controls) and _controls.consume_action(&"jump"))
 
 func _skill_pressed(action: StringName) -> bool:
 	return _consume_key_action(action) or (is_instance_valid(_controls) and _controls.consume_action(action))
@@ -390,11 +397,37 @@ func _on_stats_changed(stats: Dictionary) -> void:
 	resources_changed.emit(get_resource_snapshot())
 
 func _draw() -> void:
-	var body_color := Color(0.18, 0.23, 0.34) if state != State.HURT else Color(0.92, 0.32, 0.34)
-	draw_rect(Rect2(-14.0, -23.0, 28.0, 40.0), body_color)
-	draw_rect(Rect2(-11.0, -39.0, 22.0, 18.0), Color(0.72, 0.36, 0.20))
-	draw_polygon(PackedVector2Array([Vector2(-12.0, -20.0), Vector2(-31.0 * facing, 2.0), Vector2(-9.0, 11.0)]), PackedColorArray([Color(0.42, 0.08, 0.12)]))
-	var eye_x := 6.0 * facing
-	draw_rect(Rect2(eye_x - 2.0, -33.0, 4.0, 3.0), Color(1.0, 0.76, 0.31))
+	var moving := state == State.MOVE
+	var airborne := state == State.JUMP
+	var bob := sin(_visual_time * 12.0) * 2.0 if moving else 0.0
+	var body_color := Color(0.18, 0.26, 0.40) if state != State.HURT else Color(0.92, 0.30, 0.34)
+	var outline := Color(0.04, 0.055, 0.09, 0.96)
+	var shadow_width := 26.0 if airborne else 34.0
+	var shadow_alpha := 0.20 if airborne else 0.34
+	draw_colored_polygon(PackedVector2Array([Vector2(-shadow_width, 19.0), Vector2(shadow_width, 19.0), Vector2(shadow_width * 0.65, 24.0), Vector2(-shadow_width * 0.65, 24.0)]), Color(0.0, 0.0, 0.0, shadow_alpha))
+	var cape_back := -facing
+	draw_colored_polygon(PackedVector2Array([Vector2(-10.0 * facing, -21.0 + bob), Vector2(31.0 * cape_back, -6.0 + bob), Vector2(24.0 * cape_back, 15.0 + bob), Vector2(-8.0 * facing, 9.0 + bob)]), Color(0.48, 0.055, 0.09, 0.92))
+	draw_colored_polygon(PackedVector2Array([Vector2(-13.0, -22.0 + bob), Vector2(13.0, -22.0 + bob), Vector2(15.0, 12.0 + bob), Vector2(-15.0, 12.0 + bob)]), outline)
+	draw_colored_polygon(PackedVector2Array([Vector2(-10.0, -20.0 + bob), Vector2(10.0, -20.0 + bob), Vector2(11.0, 10.0 + bob), Vector2(-11.0, 10.0 + bob)]), body_color)
+	draw_rect(Rect2(-12.0, -9.0 + bob, 24.0, 5.0), Color(0.68, 0.48, 0.22, 0.92))
+	var leg_phase := sin(_visual_time * 13.0) * 5.0 if moving else 0.0
+	draw_line(Vector2(-6.0, 10.0 + bob), Vector2(-7.0 + leg_phase, 22.0), outline, 6.0)
+	draw_line(Vector2(6.0, 10.0 + bob), Vector2(7.0 - leg_phase, 22.0), outline, 6.0)
+	draw_circle(Vector2(0.0, -31.0 + bob), 11.0, outline)
+	draw_circle(Vector2(0.0, -31.0 + bob), 8.5, Color(0.77, 0.38, 0.20))
+	draw_rect(Rect2(-10.0, -43.0 + bob, 20.0, 6.0), Color(0.16, 0.19, 0.28))
+	var eye_x := 4.0 * facing
+	draw_circle(Vector2(eye_x, -32.0 + bob), 2.2, Color(1.0, 0.78, 0.30))
+	var sword_hand := Vector2(11.0 * facing, -4.0 + bob)
+	var sword_tip := sword_hand + Vector2(30.0 * facing, -12.0)
+	draw_line(sword_hand, sword_tip, Color(0.72, 0.78, 0.84), 4.0)
+	draw_line(sword_tip, sword_tip + Vector2(7.0 * facing, -3.0), Color(0.92, 0.94, 0.96), 2.0)
+	if moving and is_on_floor():
+		var dust_side := -facing
+		for index in range(3):
+			var phase := fmod(_visual_time * 70.0 + float(index) * 9.0, 24.0)
+			draw_circle(Vector2(dust_side * (18.0 + phase), 19.0 - float(index) * 3.0), 2.5 - float(index) * 0.45, Color(0.52, 0.48, 0.42, 0.28))
 	if state == State.ATTACK:
-		draw_arc(Vector2(18.0 * facing, -5.0), 25.0, -1.2 if facing > 0.0 else 1.9, 1.2 if facing > 0.0 else 4.3, 16, Color(0.95, 0.79, 0.42), 5.0)
+		var arc_center := Vector2(18.0 * facing, -5.0 + bob)
+		draw_arc(arc_center, 30.0, -1.15 if facing > 0.0 else 1.95, 1.15 if facing > 0.0 else 4.35, 20, Color(1.0, 0.77, 0.30, 0.92), 6.0)
+		draw_arc(arc_center, 36.0, -1.10 if facing > 0.0 else 2.0, 1.05 if facing > 0.0 else 4.30, 20, Color(0.98, 0.92, 0.66, 0.34), 2.0)

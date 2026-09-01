@@ -116,6 +116,7 @@ describe("Shadow Rift authority worker end to end", () => {
 		expect(player).toEqual({
 			x: 180,
 			y: 406,
+			vy: 0,
 			hp: 140,
 			maxHp: 140,
 			mana: 100,
@@ -314,6 +315,25 @@ describe("Shadow Rift authority worker end to end", () => {
 		expect((left.player as Json).x).toBe(16);
 		const right = await movePlayerTo(sessionId, token, seqRef, 2384, 1);
 		expect((right.player as Json).x).toBe(2384);
+	});
+
+	it("keeps jump physics server-owned and rejects airborne repeats", async () => {
+		const { sessionId, token } = await createSession();
+		const seqRef: SequenceRef = { value: 1 };
+		await sleep(40);
+		const jump = await sendAccepted(sessionId, token, seqRef, { action: "jump" });
+		const jumpPlayer = (jump.body.state as Json).player as Json;
+		expect(jumpPlayer).toMatchObject({ y: 406, vy: -520 });
+		await sleep(80);
+		const airborne = await sendAccepted(sessionId, token, seqRef, { action: "move", direction: 0 });
+		const airbornePlayer = (airborne.body.state as Json).player as Json;
+		expect(Number(airbornePlayer.y)).toBeLessThan(406);
+		expect(Number(airbornePlayer.vy)).toBeLessThan(0);
+		await sleep(40);
+		const repeated = await command(sessionId, token, seqRef.value, { action: "jump" });
+		expect(repeated.status).toBe(409);
+		expect(repeated.body.code).toBe("jump_airborne");
+		expect((repeated.body.state as Json).lastSeq).toBe(seqRef.value - 1);
 	});
 
 	it("keeps player death server-owned while sync stays available", async () => {

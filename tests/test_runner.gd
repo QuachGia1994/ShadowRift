@@ -19,6 +19,13 @@ class TestActor:
 		received = amount
 		return true
 
+class TestAuthorityClient:
+	extends ServerAuthorityClient
+	var captured_moves: Array[Dictionary] = []
+
+	func _enqueue(command: Dictionary) -> void:
+		captured_moves.append(command.duplicate(true))
+
 var _failures := 0
 
 func _init() -> void:
@@ -28,6 +35,7 @@ func _run() -> void:
 	_test_profile_recomputes_stats()
 	_test_player_fsm_and_combo()
 	_test_multitouch_isolation_and_landscape_bounds()
+	_test_immediate_server_move_dispatch()
 	_test_zone_structure()
 	_test_enemy_and_boss_fsm_smoke()
 	_test_inventory_cycles_canonical_equipment()
@@ -41,7 +49,7 @@ func _run() -> void:
 	await _test_full_scene_boot_and_pause()
 	await process_frame
 	if _failures == 0:
-		print("PASS: 14 behavior tests")
+		print("PASS: 15 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -61,6 +69,9 @@ func _test_player_fsm_and_combo() -> void:
 	root.add_child(hero)
 	hero._set_state(Hero.State.MOVE)
 	_expect(hero.state == Hero.State.MOVE, "hero enters move state")
+	controls._pending_actions["jump"] = true
+	_expect(hero._jump_pressed(), "hero consumes mobile jump action")
+	_expect(not hero._jump_pressed(), "mobile jump remains one-shot while held")
 	hero._combo_grace = 0.0
 	hero._start_attack()
 	_expect(hero.state == Hero.State.ATTACK and hero._combo_step == 1, "first attack starts combo step one")
@@ -81,7 +92,7 @@ func _test_multitouch_isolation_and_landscape_bounds() -> void:
 	root.add_child(controls)
 	var left := InputEventScreenTouch.new()
 	left.index = 1
-	left.position = Vector2(105.0, 435.0)
+	left.position = Vector2(176.0, 438.0)
 	left.pressed = true
 	controls._handle_touch(left)
 	var attack := InputEventScreenTouch.new()
@@ -90,9 +101,17 @@ func _test_multitouch_isolation_and_landscape_bounds() -> void:
 	attack.pressed = true
 	controls._handle_touch(attack)
 	_expect(controls._left_touch == 1, "left thumb owns joystick independently")
+	_expect(controls.get_move_axis().x > 0.5, "joystick touch produces immediate horizontal movement")
 	_expect(int(controls._button_owners.attack) == 2, "right thumb owns attack independently")
 	_expect(controls.consume_action(&"attack"), "attack touch queues exactly one action")
-	for action in ["attack", "skill_one", "skill_two"]:
+	var jump := InputEventScreenTouch.new()
+	jump.index = 3
+	jump.position = controls._button_center("jump")
+	jump.pressed = true
+	controls._handle_touch(jump)
+	_expect(int(controls._button_owners.jump) == 3, "jump has an independent touch owner")
+	_expect(controls.consume_action(&"jump"), "jump touch queues exactly one action")
+	for action in ["attack", "jump", "skill_one", "skill_two"]:
 		var center: Vector2 = controls._button_center(action)
 		_expect(center.x > controls.size.x * 0.5 and center.x < controls.size.x, "%s stays inside landscape right half" % action)
 		_expect(center.y > 0.0 and center.y < controls.size.y, "%s stays vertically on-screen" % action)
@@ -108,7 +127,24 @@ func _test_multitouch_isolation_and_landscape_bounds() -> void:
 	attack_release.position = attack.position
 	attack_release.pressed = false
 	controls._handle_touch(attack_release)
+	var jump_release := InputEventScreenTouch.new()
+	jump_release.index = 3
+	jump_release.position = jump.position
+	jump_release.pressed = false
+	controls._handle_touch(jump_release)
 	controls.queue_free()
+
+func _test_immediate_server_move_dispatch() -> void:
+	var client := TestAuthorityClient.new()
+	client._set_phase(ServerAuthorityClient.Phase.ONLINE, "test")
+	client.set_move_direction(1)
+	_expect(client.captured_moves.size() == 1, "direction change dispatches move immediately")
+	_expect(int(client.captured_moves[0].direction) == 1, "immediate move carries requested direction")
+	client.set_move_direction(1)
+	_expect(client.captured_moves.size() == 1, "same direction does not spam immediate moves")
+	client.set_move_direction(-1)
+	_expect(client.captured_moves.size() == 2 and int(client.captured_moves[1].direction) == -1, "direction reversal dispatches immediately")
+	_expect(ServerAuthorityClient.MOVE_INTERVAL <= 0.08, "move cadence stays responsive")
 
 func _test_zone_structure() -> void:
 	var zone := ZoneBuilder.new()

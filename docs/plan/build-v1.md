@@ -23,11 +23,15 @@ M18 is the single final milestone. It absorbs every remaining PARTIAL gate from 
 | 15. Live authority | PASS | Live Worker health/session creation previously observed. |
 | 16. Release gate & server E2E | ABSORBED → M18 | 12 Worker/DO integration tests + expanded Godot runtime suite. |
 | 17. Landscape device stabilization | ABSORBED → M18 | Landscape lock + `expand` stretch guarded statically; final visual fit is device acceptance. |
-| 18. V1 Final Closeout | SOURCE/CI GATE | One final source/CI milestone: pause/resume, 14-test Godot behavior suite, static contracts, existing server E2E, final mobile artifacts. No M19+ planned for v1. |
+| 18. V1 Final Closeout | PASS (baseline) | M18 Verify + Mobile builds completed green. Post-M18 acceptance hotfix stays outside milestone numbering. |
 
-## M18 automated gate
+## Post-M18 device acceptance hotfix
 
-`Verify` must run the static source contract, Godot import/parse, 14 GDScript behavior tests, server unit tests, Worker/Durable Object integration tests, and TypeScript type-check. `Mobile builds` must produce the Android debug APK and unsigned iOS IPA artifact. Source/CI work is not expanded beyond v1.
+`hotfix/mobile-input-ui-polish` addresses real-device evidence without creating M19: dedicated one-shot jump touch, immediate protected movement dispatch on direction changes with 80 ms periodic sync, fixed-base joystick/dead-zone improvements, compact landscape HUD, and procedural visual polish for controls/world/hero/enemies/boss/hazard. The Godot suite expands from 14 to 15 behavior tests to lock the input fix.
+
+## Automated gate
+
+`Verify` must run the static source contract, Godot import/parse, 15 GDScript behavior tests, server unit tests, Worker/Durable Object integration tests, and TypeScript type-check. `Mobile builds` must produce the Android debug APK and unsigned iOS IPA artifact.
 
 ## Final external acceptance
 
