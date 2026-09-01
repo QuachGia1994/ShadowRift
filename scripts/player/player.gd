@@ -203,7 +203,13 @@ func _start_skill(kind: StringName, mana_cost: int, duration: float) -> void:
 	_attack_time = duration
 	velocity.x *= 0.2
 	_set_state(State.ATTACK)
-	_hitbox.activate(kind, duration * 0.78, Vector2(42.0 * facing, -7.0))
+	if kind == &"skill_two":
+		var pool := get_tree().get_first_node_in_group("projectile_pool") as ReusablePool
+		if is_instance_valid(pool):
+			var projectile := pool.acquire() as PooledProjectile
+			projectile.activate(self, global_position + Vector2(28.0 * facing, -12.0), facing, kind)
+	else:
+		_hitbox.activate(kind, duration * 0.78, Vector2(42.0 * facing, -7.0))
 	resources_changed.emit(get_resource_snapshot())
 
 func _update_hurt(delta: float) -> void:

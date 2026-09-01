@@ -6,10 +6,13 @@ const GROUND_Y := 440.0
 var _hero: Hero
 var _boss: BossController
 var _save_repository := SaveRepository.new()
+var _projectile_pool: ReusablePool
+var _damage_number_pool: ReusablePool
 
 func _ready() -> void:
 	_create_zone()
 	_create_combat_authority()
+	_create_pools()
 	_create_controls()
 	_create_hero()
 	_load_progress()
@@ -21,7 +24,31 @@ func _ready() -> void:
 func _create_combat_authority() -> void:
 	var authority := CombatAuthority.new()
 	authority.add_to_group("combat_authority")
+	authority.damage_resolved.connect(_show_damage_number)
 	add_child(authority)
+
+func _create_pools() -> void:
+	_projectile_pool = ReusablePool.new()
+	_projectile_pool.add_to_group("projectile_pool")
+	_projectile_pool.configure(_make_projectile, 12)
+	add_child(_projectile_pool)
+	_damage_number_pool = ReusablePool.new()
+	_damage_number_pool.configure(_make_damage_number, 16)
+	add_child(_damage_number_pool)
+	var performance_budget := PerformanceBudget.new()
+	add_child(performance_budget)
+
+func _make_projectile() -> PooledProjectile:
+	return PooledProjectile.new()
+
+func _make_damage_number() -> PooledDamageNumber:
+	return PooledDamageNumber.new()
+
+func _show_damage_number(position: Vector2, amount: int) -> void:
+	if not is_instance_valid(_damage_number_pool):
+		return
+	var number := _damage_number_pool.acquire() as PooledDamageNumber
+	number.activate(amount, position)
 
 func _create_controls() -> void:
 	var layer := CanvasLayer.new()
