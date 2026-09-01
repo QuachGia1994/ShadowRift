@@ -7,9 +7,16 @@ var _hero: Hero
 
 func _ready() -> void:
 	_create_ground()
+	_create_combat_authority()
 	_create_controls()
 	_create_hero()
+	_create_dummy_enemy()
 	queue_redraw()
+
+func _create_combat_authority() -> void:
+	var authority := CombatAuthority.new()
+	authority.add_to_group("combat_authority")
+	add_child(authority)
 
 func _create_controls() -> void:
 	var layer := CanvasLayer.new()
@@ -24,6 +31,11 @@ func _create_hero() -> void:
 	_hero = Hero.new()
 	_hero.position = Vector2(180.0, GROUND_Y - 34.0)
 	add_child(_hero)
+
+func _create_dummy_enemy() -> void:
+	var dummy := DummyEnemy.new()
+	dummy.position = Vector2(430.0, GROUND_Y - 27.0)
+	add_child(dummy)
 
 func _create_ground() -> void:
 	var ground := StaticBody2D.new()

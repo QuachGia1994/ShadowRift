@@ -19,19 +19,26 @@ var _combo_grace := 0.0
 var _combo_step := 0
 var _hurt_time := 0.0
 var _dead := false
+var _health: HealthComponent
+var _hitbox: Hitbox
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
 	_add_body_shape()
+	_add_combat_nodes()
 	_add_camera()
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
 	if _dead:
+		_health.tick(delta)
 		velocity.y += get_gravity().y * delta
 		move_and_slide()
 		return
 	_combo_grace = maxf(0.0, _combo_grace - delta)
+	_health.tick(delta)
+	_hitbox.tick(delta)
+	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 55) % 2 == 0
 	if not is_on_floor():
 		velocity.y += get_gravity().y * delta
 	if state == State.HURT:
@@ -78,11 +85,22 @@ func die() -> void:
 func get_facing() -> float:
 	return facing
 
+func get_attack_power() -> int:
+	return 24
+
+func get_defense() -> int:
+	return 8
+
+func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
+	return _health.apply_authoritative_damage(amount, knockback)
+
 func _start_attack() -> void:
 	_combo_step = 1 if _combo_grace <= 0.0 else 2
 	_attack_time = ATTACK_DURATION
 	velocity.x *= 0.25
 	_set_state(State.ATTACK)
+	var attack_kind := &"basic_one" if _combo_step == 1 else &"basic_two"
+	_hitbox.activate(attack_kind, ATTACK_DURATION * 0.72, Vector2(34.0 * facing, -5.0))
 	attack_requested.emit(_combo_step)
 	queue_redraw()
 
@@ -132,6 +150,20 @@ func _add_camera() -> void:
 	camera.limit_bottom = 540
 	add_child(camera)
 
+func _add_combat_nodes() -> void:
+	_health = HealthComponent.new()
+	_health.configure(140, 0.55)
+	_health.damaged.connect(apply_hurt)
+	_health.depleted.connect(die)
+	add_child(_health)
+	var hurtbox := Hurtbox.new()
+	hurtbox.configure(self, Vector2(30.0, 46.0))
+	hurtbox.position = Vector2(0.0, -3.0)
+	add_child(hurtbox)
+	_hitbox = Hitbox.new()
+	_hitbox.configure(self, Vector2(46.0, 42.0))
+	add_child(_hitbox)
+
 func _draw() -> void:
 	var body_color := Color(0.18, 0.23, 0.34) if state != State.HURT else Color(0.92, 0.32, 0.34)
 	draw_rect(Rect2(-14.0, -23.0, 28.0, 40.0), body_color)
@@ -141,4 +173,3 @@ func _draw() -> void:
 	draw_rect(Rect2(eye_x - 2.0, -33.0, 4.0, 3.0), Color(1.0, 0.76, 0.31))
 	if state == State.ATTACK:
 		draw_arc(Vector2(18.0 * facing, -5.0), 25.0, -1.2 if facing > 0.0 else 1.9, 1.2 if facing > 0.0 else 4.3, 16, Color(0.95, 0.79, 0.42), 5.0)
-
