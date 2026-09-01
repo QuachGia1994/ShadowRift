@@ -36,6 +36,7 @@ func _run() -> void:
 	_test_player_fsm_and_combo()
 	_test_multitouch_isolation_and_landscape_bounds()
 	_test_immediate_server_move_dispatch()
+	_test_authority_endpoint_fallback_configuration()
 	_test_zone_structure()
 	_test_enemy_and_boss_fsm_smoke()
 	_test_inventory_cycles_canonical_equipment()
@@ -49,7 +50,7 @@ func _run() -> void:
 	await _test_full_scene_boot_and_pause()
 	await process_frame
 	if _failures == 0:
-		print("PASS: 15 behavior tests")
+		print("PASS: 16 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -145,6 +146,15 @@ func _test_immediate_server_move_dispatch() -> void:
 	client.set_move_direction(-1)
 	_expect(client.captured_moves.size() == 2 and int(client.captured_moves[1].direction) == -1, "direction reversal dispatches immediately")
 	_expect(ServerAuthorityClient.MOVE_INTERVAL <= 0.08, "move cadence stays responsive")
+
+func _test_authority_endpoint_fallback_configuration() -> void:
+	var client := ServerAuthorityClient.new()
+	client._append_server_url("https://primary.example")
+	client._append_server_url("https://fallback.example")
+	client._append_server_url("https://primary.example")
+	_expect(client._server_urls.size() == 2, "authority endpoint list deduplicates primary and fallback")
+	_expect(client._network_error_detail(HTTPRequest.RESULT_CANT_RESOLVE) == "dns_failed", "DNS failures are identified explicitly")
+	_expect(client._network_error_detail(HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR) == "tls_failed", "TLS failures are identified explicitly")
 
 func _test_zone_structure() -> void:
 	var zone := ZoneBuilder.new()

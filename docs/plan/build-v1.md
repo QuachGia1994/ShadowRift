@@ -27,11 +27,11 @@ M18 is the single final milestone. It absorbs every remaining PARTIAL gate from 
 
 ## Post-M18 device acceptance hotfix
 
-`hotfix/mobile-input-ui-polish` addresses real-device evidence without creating M19: dedicated one-shot jump touch, immediate protected movement dispatch on direction changes with 80 ms periodic sync, fixed-base joystick/dead-zone improvements, compact landscape HUD, and procedural visual polish for controls/world/hero/enemies/boss/hazard. The Godot suite expands from 14 to 15 behavior tests to lock the input fix.
+`hotfix/mobile-input-ui-polish` addresses real-device evidence without creating M19: dedicated one-shot jump touch, immediate protected movement dispatch on direction changes with 80 ms periodic sync, fixed-base joystick/dead-zone improvements, compact landscape HUD, and procedural visual polish for controls/world/hero/enemies/boss/hazard. `hotfix/android-authority-dns` adds a production custom authority hostname (`shadowrift.oakgatekeeper.uk`) while retaining `workers.dev` as fallback, and the client switches endpoints on DNS/connect/TLS/timeout transport failure without allowing offline protected gameplay. The Godot suite expands to 16 behavior tests.
 
 ## Automated gate
 
-`Verify` must run the static source contract, Godot import/parse, 15 GDScript behavior tests, server unit tests, Worker/Durable Object integration tests, and TypeScript type-check. `Mobile builds` must produce the Android debug APK and unsigned iOS IPA artifact.
+`Verify` must run the static source contract, Godot import/parse, 16 GDScript behavior tests, server unit tests, Worker/Durable Object integration tests, and TypeScript type-check. `Mobile builds` must produce the Android debug APK and unsigned iOS IPA artifact. Authority deployment keeps `workers_dev=true` and the custom domain route so DNS failure on one hostname does not remove the other endpoint.
 
 ## Final external acceptance
 

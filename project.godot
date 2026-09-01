@@ -26,7 +26,8 @@ window/handheld/orientation=0
 
 [shadow_rift]
 
-server/base_url="https://shadowrift-authority.kim-phong619.workers.dev"
+server/base_url="https://shadowrift.oakgatekeeper.uk"
+server/fallback_url="https://shadowrift-authority.kim-phong619.workers.dev"
 
 [rendering]
 

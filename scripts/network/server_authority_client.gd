@@ -8,6 +8,7 @@ signal connection_state_changed(state: String, detail: String)
 const SESSION_PATH := "user://server_session.cfg"
 const MOVE_INTERVAL := 0.08
 const SERVER_URL_SETTING := "shadow_rift/server/base_url"
+const FALLBACK_SERVER_URL_SETTING := "shadow_rift/server/fallback_url"
 const RETRY_BASE_DELAY := 1.0
 const RETRY_MAX_DELAY := 30.0
 const RETRY_JITTER := 0.4
@@ -17,6 +18,8 @@ enum Phase { OFFLINE, CONNECTING, RECONNECTING, ONLINE }
 var phase := Phase.OFFLINE
 var _http: HTTPRequest
 var _base_url := ""
+var _server_urls: Array[String] = []
+var _server_url_index := 0
 var _session_id := ""
 var _token := ""
 var _next_sequence := 1
@@ -37,16 +40,26 @@ func _ready() -> void:
 func connect_to_authority() -> void:
 	if phase == Phase.CONNECTING or phase == Phase.ONLINE:
 		return
-	_base_url = str(ProjectSettings.get_setting(SERVER_URL_SETTING, "")).strip_edges().trim_suffix("/")
-	if not _base_url.begins_with("https://"):
+	_server_urls.clear()
+	_append_server_url(ProjectSettings.get_setting(SERVER_URL_SETTING, ""))
+	_append_server_url(ProjectSettings.get_setting(FALLBACK_SERVER_URL_SETTING, ""))
+	if _server_urls.is_empty():
 		_set_phase(Phase.OFFLINE, "invalid_server_url")
 		return
+	_server_url_index = 0
+	_base_url = _server_urls[_server_url_index]
 	_retry_attempt = 0
 	_set_phase(Phase.CONNECTING, "connecting")
 	if _load_credentials():
 		_request_resume()
 	else:
 		_create_session()
+
+func _append_server_url(value: Variant) -> void:
+	var url := str(value).strip_edges().trim_suffix("/")
+	if not url.begins_with("https://") or _server_urls.has(url):
+		return
+	_server_urls.append(url)
 
 static func compute_retry_delay(attempt: int, random_value: float) -> float:
 	var base := minf(RETRY_MAX_DELAY, RETRY_BASE_DELAY * pow(2.0, float(maxi(attempt, 0))))
@@ -131,7 +144,9 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 	var completed_kind := _request_kind
 	_request_kind = ""
 	if result != HTTPRequest.RESULT_SUCCESS:
-		_fail_closed("network_error_%d" % result)
+		if _switch_to_fallback_endpoint(result):
+			return
+		_fail_closed(_network_error_detail(result))
 		return
 	var decoded: Variant = JSON.parse_string(body.get_string_from_utf8())
 	if not decoded is Dictionary:
@@ -145,6 +160,38 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 			_handle_resume(response_code, payload)
 		"command":
 			_handle_command(response_code, payload)
+
+func _switch_to_fallback_endpoint(result: int) -> bool:
+	if _server_urls.size() < 2 or _server_url_index + 1 >= _server_urls.size():
+		return false
+	_server_url_index += 1
+	_base_url = _server_urls[_server_url_index]
+	_command_queue.clear()
+	_inflight_command.clear()
+	_move_direction = 0
+	_retry_attempt = 0
+	if _has_session_credentials():
+		_set_phase(Phase.RECONNECTING, "endpoint_fallback_%s" % _network_error_detail(result))
+		_request_resume()
+	else:
+		_set_phase(Phase.CONNECTING, "endpoint_fallback_%s" % _network_error_detail(result))
+		_create_session()
+	return true
+
+func _network_error_detail(result: int) -> String:
+	match result:
+		HTTPRequest.RESULT_CANT_RESOLVE:
+			return "dns_failed"
+		HTTPRequest.RESULT_CANT_CONNECT:
+			return "connect_failed"
+		HTTPRequest.RESULT_CONNECTION_ERROR:
+			return "connection_failed"
+		HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR:
+			return "tls_failed"
+		HTTPRequest.RESULT_TIMEOUT:
+			return "timeout"
+		_:
+			return "network_error_%d" % result
 
 func _handle_create(response_code: int, payload: Dictionary) -> void:
 	if response_code != 201 or not bool(payload.get("ok", false)):
