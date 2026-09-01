@@ -12,4 +12,6 @@ All notable changes are documented in this file.
 - Checksummed JSON save data with tamper and invariant rejection.
 - Pooled projectiles and damage numbers with a 50 draw-call runtime budget monitor.
 - Android and iOS debug export presets plus automated source and behavior checks.
-
+- Cloudflare Worker and SQLite Durable Object authority for authenticated, replay-resistant, server-owned combat and progression.
+- Intent-only Godot network client with resumable sessions and fail-closed protected mobile exports.
+- Public GitHub Actions for verification, Android debug APK, unsigned iOS build, and manual Cloudflare deployment.

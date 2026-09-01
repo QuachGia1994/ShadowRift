@@ -1,0 +1,62 @@
+name: Mobile builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - name: Install pinned Android SDK components
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.1.13356709"
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+      - name: Configure Godot Android paths
+        run: godot --headless --editor --path . --script res://tools/configure_android_ci.gd
+      - name: Import and export Android debug APK
+        run: |
+          godot --headless --path . --editor --quit
+          mkdir -p exports/android
+          godot --headless --path . --export-debug "Android Debug" exports/android/ShadowRift-debug.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ShadowRift-android-debug
+          path: exports/android/ShadowRift-debug.apk
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+      - name: Build unsigned iOS application
+        run: ./tools/build_unsigned_ios.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ShadowRift-ios-unsigned
+          path: |
+            exports/ios/ShadowRift-unsigned.ipa
+            exports/ios/ShadowRift-xcode.zip
+          if-no-files-found: error

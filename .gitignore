@@ -1,6 +1,6 @@
 .godot/
 build/
 exports/
+server/node_modules/
 *.tmp
 *.log
-

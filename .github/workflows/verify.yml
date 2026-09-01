@@ -1,0 +1,50 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install server tooling
+        working-directory: server
+        run: npm ci --ignore-scripts
+      - name: Test authoritative domain
+        working-directory: server
+        run: npm test
+      - name: Type-check Worker
+        working-directory: server
+        run: npm run typecheck
+
+  godot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+      - name: Verify source contract
+        run: python tools/verify_project.py
+      - name: Import and parse project
+        run: godot --headless --path . --editor --quit
+      - name: Run GDScript behavior tests
+        run: godot --headless --path . --script res://tests/test_runner.gd

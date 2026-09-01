@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 import { applyCommand, createInitialState, parseCommand, type GameState } from "./domain";
 
 interface Env {
