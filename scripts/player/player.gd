@@ -32,6 +32,10 @@ var _key_actions := {&"attack": false, &"jump": false, &"skill_one": false, &"sk
 var _profile := PlayerProfile.new()
 var _integrity_check_time := 0.0
 var _integrity_violations := 0
+var _server_authority_enabled := OS.has_feature("server_authoritative")
+var _server_client: ServerAuthorityClient
+var _server_snapshot: Dictionary = {}
+var _server_animation_time := 0.0
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
@@ -56,6 +60,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_key_actions[&"skill_two"] = true
 
 func _physics_process(delta: float) -> void:
+	if _server_authority_enabled:
+		_process_server_authority(delta)
+		return
 	if _dead:
 		_health.tick(delta)
 		velocity.y += get_gravity().y * delta
@@ -124,15 +131,23 @@ func get_attack_power() -> int:
 	return get_canonical_attack_power()
 
 func get_canonical_attack_power() -> int:
+	if _server_authority_enabled:
+		return int(_server_snapshot.get("attack", 0))
 	return int(_profile.get_canonical_stats().attack)
 
 func get_defense() -> int:
+	if _server_authority_enabled:
+		return int(_server_snapshot.get("defense", 0))
 	return int(_profile.get_canonical_stats().defense)
 
 func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
+	if _server_authority_enabled:
+		return false
 	return _health.apply_authoritative_damage(amount, knockback)
 
 func grant_rewards(experience: int, gold: int) -> void:
+	if _server_authority_enabled:
+		return
 	_experience += maxi(0, experience)
 	_gold += maxi(0, gold)
 	while _experience >= _experience_to_next:
@@ -143,6 +158,8 @@ func grant_rewards(experience: int, gold: int) -> void:
 	resources_changed.emit(get_resource_snapshot())
 
 func get_resource_snapshot() -> Dictionary:
+	if _server_authority_enabled and not _server_snapshot.is_empty():
+		return _server_snapshot.duplicate(true)
 	var stats := _profile.get_stats()
 	return {"health": _health.current, "max_health": _health.maximum, "mana": _mana, "max_mana": _maximum_mana, "level": _level, "exp": _experience, "exp_to_next": _experience_to_next, "gold": _gold, "attack": stats.attack, "defense": stats.defense, "weapon_name": stats.weapon_name, "armor_name": stats.armor_name}
 
@@ -150,9 +167,13 @@ func get_profile() -> PlayerProfile:
 	return _profile
 
 func export_save_payload() -> Dictionary:
+	if _server_authority_enabled:
+		return {}
 	return {"level": _level, "experience": _experience, "experience_to_next": _experience_to_next, "gold": _gold, "mana": _mana, "health": _health.current, "equipment": _profile.get_equipment_payload()}
 
 func restore_save_payload(payload: Dictionary) -> bool:
+	if _server_authority_enabled:
+		return false
 	var repository := SaveRepository.new()
 	if not repository.validate_payload(payload).ok:
 		return false
@@ -177,7 +198,56 @@ func cycle_equipment(slot: StringName) -> void:
 		return
 	var current_id := _profile.weapon_id if slot == &"weapon" else _profile.armor_id
 	var next_index := (ids.find(current_id) + 1) % ids.size()
+	if _server_authority_enabled:
+		if is_instance_valid(_server_client) and _server_client.is_online():
+			_server_client.submit_action("equip", {"slot": String(slot), "itemId": String(ids[next_index])})
+		return
 	_profile.equip(slot, ids[next_index])
+
+func bind_server_authority(client: ServerAuthorityClient) -> void:
+	_server_client = client
+
+func apply_server_snapshot(player: Dictionary) -> void:
+	if not _server_authority_enabled:
+		return
+	var equipment := {"weapon": str(player.get("weaponId", "")), "armor": str(player.get("armorId", ""))}
+	_profile.set_level(int(player.get("level", 1)))
+	_profile.restore_equipment(equipment)
+	_level = int(player.get("level", 1))
+	_experience = int(player.get("exp", 0))
+	_experience_to_next = int(player.get("expToNext", 100))
+	_gold = int(player.get("gold", 0))
+	_maximum_mana = int(player.get("maxMana", 1))
+	_mana = clampi(int(player.get("mana", 0)), 0, _maximum_mana)
+	_health.set_maximum(int(player.get("maxHp", 1)), false)
+	_health.set_current(int(player.get("hp", 0)))
+	global_position.x = float(player.get("x", global_position.x))
+	global_position.y = float(player.get("y", global_position.y))
+	_dead = _health.current <= 0
+	if _dead:
+		_set_state(State.DEATH)
+	var stats := _profile.get_stats()
+	_server_snapshot = {
+		"health": _health.current,
+		"max_health": _health.maximum,
+		"mana": _mana,
+		"max_mana": _maximum_mana,
+		"level": _level,
+		"exp": _experience,
+		"exp_to_next": _experience_to_next,
+		"gold": _gold,
+		"attack": int(player.get("attack", 0)),
+		"defense": int(player.get("defense", 0)),
+		"weapon_name": stats.weapon_name,
+		"armor_name": stats.armor_name
+	}
+	resources_changed.emit(get_resource_snapshot())
+	queue_redraw()
+
+func set_server_connection_available(available: bool) -> void:
+	if not available and _server_authority_enabled:
+		velocity = Vector2.ZERO
+		_set_state(State.IDLE if not _dead else State.DEATH)
 
 func _start_attack() -> void:
 	_combo_step = 1 if _combo_grace <= 0.0 else 2
@@ -187,6 +257,36 @@ func _start_attack() -> void:
 	var attack_kind := &"basic_one" if _combo_step == 1 else &"basic_two"
 	_hitbox.activate(attack_kind, ATTACK_DURATION * 0.72, Vector2(34.0 * facing, -5.0))
 	attack_requested.emit(_combo_step)
+	queue_redraw()
+
+func _process_server_authority(delta: float) -> void:
+	_server_animation_time = maxf(0.0, _server_animation_time - delta)
+	if not is_instance_valid(_server_client) or not _server_client.is_online() or _dead:
+		velocity = Vector2.ZERO
+		return
+	var move_axis := _controls.get_move_axis().x if is_instance_valid(_controls) else 0.0
+	var move_direction := 0 if absf(move_axis) <= 0.05 else int(signf(move_axis))
+	_server_client.set_move_direction(move_direction)
+	if move_direction != 0:
+		facing = float(move_direction)
+	if _jump_pressed():
+		_server_client.submit_action("jump")
+		_set_state(State.JUMP)
+		_server_animation_time = 0.22
+	elif _skill_pressed(&"skill_two"):
+		_server_client.submit_action("skill", {"slot": 2})
+		_set_state(State.ATTACK)
+		_server_animation_time = 0.34
+	elif _skill_pressed(&"skill_one"):
+		_server_client.submit_action("skill", {"slot": 1})
+		_set_state(State.ATTACK)
+		_server_animation_time = 0.28
+	elif _attack_pressed():
+		_server_client.submit_action("attack")
+		_set_state(State.ATTACK)
+		_server_animation_time = ATTACK_DURATION
+	elif _server_animation_time <= 0.0:
+		_set_state(State.MOVE if move_direction != 0 else State.IDLE)
 	queue_redraw()
 
 func _update_attack(delta: float) -> void:
@@ -281,6 +381,8 @@ func _on_health_changed(_current: int, _maximum: int) -> void:
 	resources_changed.emit(get_resource_snapshot())
 
 func _on_stats_changed(stats: Dictionary) -> void:
+	if _server_authority_enabled:
+		return
 	_maximum_mana = int(stats.max_mana)
 	_mana = mini(_mana, _maximum_mana)
 	if is_instance_valid(_health):

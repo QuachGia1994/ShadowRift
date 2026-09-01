@@ -13,6 +13,8 @@ var _hitbox: Hitbox
 var _state_time := 0.0
 var _attack_cooldown := 0.0
 var _attack_direction := -1.0
+var server_entity_id := "boss-1"
+var _server_authority_enabled := OS.has_feature("server_authoritative")
 
 func configure(hero_target: Hero) -> void:
 	target = hero_target
@@ -23,6 +25,8 @@ func _ready() -> void:
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	if _server_authority_enabled:
+		return
 	_health.tick(delta)
 	_hitbox.tick(delta)
 	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
@@ -59,10 +63,25 @@ func get_defense() -> int:
 	return 13
 
 func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
+	if _server_authority_enabled:
+		return false
 	return _health.apply_authoritative_damage(amount, knockback * 0.35)
 
 func get_health_snapshot() -> Vector2i:
 	return Vector2i(_health.current, _health.maximum)
+
+func apply_server_snapshot(snapshot: Dictionary) -> void:
+	if not _server_authority_enabled:
+		return
+	global_position.x = float(snapshot.get("x", global_position.x))
+	_health.set_maximum(int(snapshot.get("maxHp", 1)), false)
+	_health.set_current(int(snapshot.get("hp", 0)))
+	var alive := bool(snapshot.get("alive", false))
+	state = State.WATCH if alive else State.DEATH
+	visible = alive
+	process_mode = Node.PROCESS_MODE_INHERIT if alive else Node.PROCESS_MODE_DISABLED
+	health_changed.emit(_health.current, _health.maximum)
+	queue_redraw()
 
 func _update_chase() -> void:
 	if not is_instance_valid(target):

@@ -6,6 +6,8 @@ var _boss: BossController
 var _hero_snapshot: Dictionary = {}
 var _boss_current := 0
 var _boss_maximum := 1
+var _network_state := "LOCAL"
+var _network_detail := "editor_debug"
 
 func configure(hero: Hero, boss: BossController) -> void:
 	_hero = hero
@@ -40,6 +42,11 @@ func _on_boss_health_changed(current: int, maximum: int) -> void:
 	_boss_current = current
 	_boss_maximum = maximum
 
+func set_network_status(state: String, detail: String) -> void:
+	_network_state = state
+	_network_detail = detail
+	queue_redraw()
+
 func _draw() -> void:
 	if _hero_snapshot.is_empty():
 		return
@@ -56,6 +63,13 @@ func _draw() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(422.0, 147.0), "ATK %d  DEF %d" % [int(_hero_snapshot.attack), int(_hero_snapshot.defense)], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.82, 0.86, 0.91))
 	draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 16.0, 34.0), "1/1", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 	draw_string(ThemeDB.fallback_font, Vector2(size.x - 88.0, 28.0), "FPS %d" % Engine.get_frames_per_second(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.84, 0.88))
+	if OS.has_feature("server_authoritative"):
+		var network_color := Color(0.25, 0.88, 0.52) if _network_state == "ONLINE" else Color(0.96, 0.28, 0.30)
+		draw_string(ThemeDB.fallback_font, Vector2(size.x - 230.0, 49.0), "SERVER %s" % _network_state, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, network_color)
+		if _network_state != "ONLINE":
+			draw_rect(Rect2(size.x * 0.5 - 210.0, size.y * 0.5 - 38.0, 420.0, 76.0), Color(0.03, 0.02, 0.04, 0.92))
+			draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 175.0, size.y * 0.5 - 5.0), "SERVER REQUIRED — GAMEPLAY LOCKED", HORIZONTAL_ALIGNMENT_LEFT, 350.0, 17, Color(0.96, 0.34, 0.34))
+			draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 175.0, size.y * 0.5 + 20.0), _network_detail, HORIZONTAL_ALIGNMENT_LEFT, 350.0, 12, Color(0.78, 0.78, 0.82))
 	if is_instance_valid(_boss) and _boss_current > 0:
 		_draw_bar(Rect2(size.x * 0.5 - 180.0, 54.0, 360.0, 18.0), _boss_current, _boss_maximum, Color(0.58, 0.06, 0.14), "RIFT WARDEN")
 

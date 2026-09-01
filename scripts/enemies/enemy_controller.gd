@@ -16,6 +16,8 @@ var _attack_time := 0.0
 var _hurt_time := 0.0
 var _health: HealthComponent
 var _hitbox: Hitbox
+var server_entity_id := ""
+var _server_authority_enabled := OS.has_feature("server_authoritative")
 
 func configure(enemy_kind: Kind, hero_target: Hero) -> void:
 	kind = enemy_kind
@@ -28,6 +30,8 @@ func _ready() -> void:
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
+	if _server_authority_enabled:
+		return
 	_health.tick(delta)
 	_hitbox.tick(delta)
 	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
@@ -55,7 +59,21 @@ func get_defense() -> int:
 	return 9 if kind == Kind.WARDEN else 3
 
 func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
+	if _server_authority_enabled:
+		return false
 	return _health.apply_authoritative_damage(amount, knockback)
+
+func apply_server_snapshot(snapshot: Dictionary) -> void:
+	if not _server_authority_enabled:
+		return
+	global_position.x = float(snapshot.get("x", global_position.x))
+	_health.set_maximum(int(snapshot.get("maxHp", 1)), false)
+	_health.set_current(int(snapshot.get("hp", 0)))
+	var alive := bool(snapshot.get("alive", false))
+	state = State.PATROL if alive else State.DEATH
+	visible = alive
+	process_mode = Node.PROCESS_MODE_INHERIT if alive else Node.PROCESS_MODE_DISABLED
+	queue_redraw()
 
 func _update_patrol(_delta: float) -> void:
 	if _target_distance() < 300.0:
@@ -156,4 +174,3 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(0.0, -39.0), Vector2(18.0, -10.0), Vector2(11.0, 20.0), Vector2(-13.0, 20.0), Vector2(-19.0, -10.0)]), Color(0.20, 0.12, 0.31))
 		draw_arc(Vector2.ZERO, 18.0, 0.0, TAU, 18, Color(0.36, 0.77, 0.86, 0.58), 3.0)
 		draw_circle(Vector2(5.0, -19.0), 3.0, Color(0.43, 0.91, 0.96))
-

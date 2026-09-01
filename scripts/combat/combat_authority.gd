@@ -8,6 +8,8 @@ const DAMAGE_CAP := 9999
 const ATTACK_MULTIPLIERS := {&"basic_one": 1.0, &"basic_two": 1.28, &"skill_one": 1.65, &"skill_two": 2.1, &"enemy_basic": 1.0, &"boss_basic": 1.35}
 
 func resolve_hit(source: Node2D, target: Node2D, attack_kind: StringName) -> bool:
+	if OS.has_feature("server_authoritative"):
+		return false
 	if not _valid_combatants(source, target) or not ATTACK_MULTIPLIERS.has(attack_kind):
 		return false
 	if source.global_position.distance_to(target.global_position) > MAX_MELEE_DISTANCE:
@@ -26,6 +28,8 @@ func resolve_hit(source: Node2D, target: Node2D, attack_kind: StringName) -> boo
 	return applied
 
 func resolve_projectile_hit(source: Node2D, target: Node2D, attack_kind: StringName) -> bool:
+	if OS.has_feature("server_authoritative"):
+		return false
 	if not _valid_combatants(source, target) or not ATTACK_MULTIPLIERS.has(attack_kind):
 		return false
 	if source.global_position.distance_to(target.global_position) > 760.0:
@@ -42,6 +46,8 @@ func resolve_projectile_hit(source: Node2D, target: Node2D, attack_kind: StringN
 	return applied
 
 func resolve_environment_hit(target: Node2D, raw_damage: int, knockback: Vector2) -> bool:
+	if OS.has_feature("server_authoritative"):
+		return false
 	if not is_instance_valid(target) or not target.is_inside_tree() or not target.has_method("receive_authoritative_hit"):
 		return false
 	var resolved_damage := clampi(raw_damage, 1, DAMAGE_CAP)

@@ -16,6 +16,10 @@ REQUIRED = [
     "scripts/progression/player_profile.gd",
     "scripts/persistence/save_repository.gd",
     "scripts/performance/reusable_pool.gd",
+    "scripts/network/server_authority_client.gd",
+    "server/src/domain.ts",
+    "server/src/worker.ts",
+    "server/src/domain.test.ts",
     "tests/test_runner.gd",
 ]
 
@@ -65,6 +69,16 @@ def main() -> int:
     require("DRAW_CALL_BUDGET := 50" in runtime_text, "draw-call budget missing")
     presets = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")
     require('platform="Android"' in presets and 'platform="iOS"' in presets, "mobile export presets missing")
+    require(presets.count('custom_features="mobile,server_authoritative"') == 2, "mobile exports must require server authority")
+    client = (ROOT / "scripts/network/server_authority_client.gd").read_text(encoding="utf-8")
+    require("SERVER REQUIRED — GAMEPLAY LOCKED" in runtime_text, "mobile disconnect must fail closed")
+    require("SESSION_PATH" in client and "lastSeq" in client, "resumable server session protocol missing")
+    authority = (ROOT / "scripts/combat/combat_authority.gd").read_text(encoding="utf-8")
+    require(authority.count('OS.has_feature("server_authoritative")') == 3, "local damage paths remain enabled in protected builds")
+    domain = (ROOT / "server/src/domain.ts").read_text(encoding="utf-8")
+    require("exactKeys" in domain and "sequence_rejected" in domain and "nearestEnemy" in domain, "server command validation missing")
+    worker = (ROOT / "server/src/worker.ts").read_text(encoding="utf-8")
+    require("DurableObject" in worker and "tokenHash" in worker and "MAX_BODY_BYTES" in worker, "durable authenticated server boundary missing")
     attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     require("filter=lfs" in attributes, "Git LFS patterns missing")
     print(f"PASS: {len(REQUIRED)} required files, delimiter scan, scope, integrity, performance, exports, LFS")
@@ -77,4 +91,3 @@ if __name__ == "__main__":
     except AssertionError as error:
         print(f"FAIL: {error}", file=sys.stderr)
         raise SystemExit(1)
-
