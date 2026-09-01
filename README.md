@@ -24,6 +24,13 @@ godot --headless --path . --script res://tests/test_runner.gd
 
 GitHub `Verify` pins Godot 4.7.2, imports/parses the project, runs the source contract, and runs 13 deterministic GDScript behavior tests covering player/input, safe-area mapping, lifecycle input reset, world structure, enemy/boss FSMs, inventory, save validation, local canonical combat/hazard damage, pooling, performance contracts, production art resources, and pause/resume.
 
+Regenerate production art (Pillow + NumPy) from the Godot-ignored masters in `art_source/option_a_masters` plus the local environment/UI/VFX generators:
+
+```bash
+python tools/generate_option_a_assets.py
+python tools/report_mobile_memory.py
+```
+
 ## Mobile pre-release export
 
 - Package version: `0.1.0`; bundle/package identifier: `uk.oakgatekeeper.shadowrift`.

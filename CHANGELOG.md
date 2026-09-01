@@ -20,6 +20,7 @@ All notable changes are documented in this file.
 
 ### Changed
 
+- Hero, Warden, Wraith, and Rift Warden character sheets now compile from Option A high-detail painted masters (backdrop keyed, spill cleaned, feet-anchored) while keeping the existing animation names, frame counts, SpriteFrames paths, and original visual footprint/pivot.
 - Hero, Warden, Wraith, and Rift Warden now render through native `AnimatedSprite2D` SpriteFrames with state-mapped animations and independent slash VFX; all procedural `_draw()` character art was removed while preserving movement, combo timing, hitboxes, FSM transitions, cooldowns, and damage exactly.
 - The zone renders from an imported TileSet atlas with textured one-way platforms and spike hazard, and the world background uses three `Parallax2D` layers instead of runtime-drawn sky/ridges.
 - HUD bars moved to native `TextureProgressBar` controls with catalog equipment icons, and mobile joystick/action buttons render through texture visuals while keeping the original multi-touch ownership, dead-zone, one-shot, and safe-area behavior.

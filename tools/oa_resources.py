@@ -16,7 +16,7 @@ def emit_spriteframes(relative: str, sheet_relative: str, cell: int, anims) -> N
         col = i % 8
         row = i // 8
         lines.append(f'[sub_resource type="AtlasTexture" id="AtlasTexture_{i}"]')
-        lines.append(f'atlas = ExtResource("1_sheet")')
+        lines.append('atlas = ExtResource("1_sheet")')
         lines.append(f"region = Rect2({col * cell}, {row * cell}, {cell}, {cell})")
         lines.append("")
     entries = []
@@ -54,7 +54,7 @@ def emit_tileset() -> None:
 
 def build_all() -> None:
     emit_spriteframes(
-        "assets/sprites/hero/hero_frames.tres", "assets/sprites/hero/hero_sheet.png", 64,
+        "assets/sprites/hero/hero_frames.tres", "assets/sprites/hero/hero_sheet.png", 192,
         [("idle", 6.0, True, [0, 1, 2, 3]),
          ("move", 12.0, True, [4, 5, 6, 7, 8, 9]),
          ("jump", 8.0, True, [10, 11]),
@@ -65,20 +65,20 @@ def build_all() -> None:
          ("hurt", 8.0, False, [24, 25]),
          ("death", 6.0, False, [26, 27, 28, 29])])
     emit_spriteframes(
-        "assets/sprites/enemies/warden_frames.tres", "assets/sprites/enemies/warden_sheet.png", 64,
+        "assets/sprites/enemies/warden_frames.tres", "assets/sprites/enemies/warden_sheet.png", 192,
         [("patrol", 7.0, True, [0, 1, 2, 3]),
          ("aggro", 5.0, True, [4, 5]),
          ("attack", 9.0, False, [6, 7, 8]),
          ("hurt", 8.0, False, [9, 10]),
          ("death", 6.0, False, [11, 12, 13, 14])])
     emit_spriteframes(
-        "assets/sprites/enemies/wraith_frames.tres", "assets/sprites/enemies/wraith_sheet.png", 64,
+        "assets/sprites/enemies/wraith_frames.tres", "assets/sprites/enemies/wraith_sheet.png", 192,
         [("hover", 6.0, True, [0, 1, 2, 3]),
          ("dash_attack", 12.0, False, [4, 5, 6]),
          ("hurt", 8.0, False, [7, 8]),
          ("death", 6.0, False, [9, 10, 11, 12])])
     emit_spriteframes(
-        "assets/sprites/enemies/rift_warden_frames.tres", "assets/sprites/enemies/rift_warden_sheet.png", 128,
+        "assets/sprites/enemies/rift_warden_frames.tres", "assets/sprites/enemies/rift_warden_sheet.png", 256,
         [("watch", 5.0, True, [0, 1, 2, 3]),
          ("chase", 9.0, True, [4, 5, 6, 7]),
          ("windup", 6.5, False, [8, 9, 10]),

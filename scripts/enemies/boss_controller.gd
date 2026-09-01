@@ -140,7 +140,9 @@ func _add_sprite() -> void:
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = BOSS_FRAMES
 	_sprite.centered = false
-	_sprite.offset = Vector2(-64.0, -103.0)
+	# 256px HD cells scaled to the original 128px visual footprint and pivot.
+	_sprite.offset = Vector2(-128.0, -206.0)
+	_sprite.scale = Vector2(128.0 / 256.0, 128.0 / 256.0)
 	add_child(_sprite)
 	_sprite.play(&"watch")
 

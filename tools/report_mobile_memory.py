@@ -47,7 +47,7 @@ def category_for(relative: str) -> str:
 
 def reference_corpus() -> str:
     chunks = []
-    for pattern in ("scripts/**/*.gd", "tests/**/*.gd", "scenes/*.tscn", "*.godot", "*.tres", "assets/**/*.tres", "tools/generate_option_a_assets.py", "tools/oa_characters.py", "tools/oa_world_ui.py", "tools/oa_resources.py"):
+    for pattern in ("scripts/**/*.gd", "tests/**/*.gd", "scenes/*.tscn", "*.godot", "*.tres", "assets/**/*.tres", "tools/generate_option_a_assets.py", "tools/build_high_detail_characters.py", "tools/oa_world_ui.py", "tools/oa_resources.py"):
         for path in ROOT.glob(pattern):
             try:
                 chunks.append(path.read_text(encoding="utf-8", errors="ignore"))

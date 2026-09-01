@@ -290,7 +290,9 @@ func _add_sprite() -> void:
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = HERO_FRAMES
 	_sprite.centered = false
-	_sprite.offset = Vector2(-32.0, -43.0)
+	# 192px HD cells scaled to the original 64px visual footprint and pivot.
+	_sprite.offset = Vector2(-96.0, -129.0)
+	_sprite.scale = Vector2(64.0 / 192.0, 64.0 / 192.0)
 	add_child(_sprite)
 	_sprite.play(&"idle")
 

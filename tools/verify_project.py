@@ -103,6 +103,22 @@ def main() -> int:
         require((ROOT / relative).is_file(), f"missing production asset {relative}")
     require((ROOT / "tools/report_mobile_memory.py").is_file(), "mobile memory report tool missing")
     require((ROOT / "tools/check_elf_alignment.py").is_file(), "16 KB ELF alignment check tool missing")
+    require((ROOT / "art_source/.gdignore").is_file(), "art source must stay Godot-ignored")
+    masters = ROOT / "art_source/option_a_masters"
+    require((masters / ".gdignore").is_file(), "Option A high-detail masters must stay Godot-ignored")
+    for source_name in ("knight-combat.jpg", "dragon.jpg", "keep-gate.jpg", "courtyard-far.jpg", "hud-ref.jpg", "courtyard.jpg", "knight.jpg", "title.jpg"):
+        require((masters / source_name).is_file(), f"missing Option A high-detail master {source_name}")
+    generator = (ROOT / "tools/generate_option_a_assets.py").read_text(encoding="utf-8")
+    require("build_high_detail_characters" in generator and "oa_characters" not in generator, "low-detail character generator is still active")
+    require(not (ROOT / "tools/oa_characters.py").exists(), "obsolete procedural character generator remained")
+    frame_contracts = {
+        "assets/sprites/hero/hero_frames.tres": "Rect2(0, 0, 192, 192)",
+        "assets/sprites/enemies/warden_frames.tres": "Rect2(0, 0, 192, 192)",
+        "assets/sprites/enemies/wraith_frames.tres": "Rect2(0, 0, 192, 192)",
+        "assets/sprites/enemies/rift_warden_frames.tres": "Rect2(0, 0, 256, 256)",
+    }
+    for relative, signature in frame_contracts.items():
+        require(signature in (ROOT / relative).read_text(encoding="utf-8"), f"HD SpriteFrames contract missing in {relative}")
     for png in sorted((ROOT / "assets").rglob("*.png")):
         import_file = png.with_suffix(".png.import")
         require(import_file.is_file(), f"missing pinned import settings for {png.relative_to(ROOT).as_posix()}")
