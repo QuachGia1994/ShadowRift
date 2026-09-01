@@ -30,6 +30,8 @@ var _experience_to_next := 100
 var _gold := 0
 var _key_actions := {&"attack": false, &"jump": false, &"skill_one": false, &"skill_two": false}
 var _profile := PlayerProfile.new()
+var _integrity_check_time := 0.0
+var _integrity_violations := 0
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
@@ -60,6 +62,11 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 	_combo_grace = maxf(0.0, _combo_grace - delta)
+	_integrity_check_time -= delta
+	if _integrity_check_time <= 0.0:
+		_integrity_check_time = 0.5
+		if _profile.repair_if_modified():
+			_integrity_violations += 1
 	_health.tick(delta)
 	_hitbox.tick(delta)
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 55) % 2 == 0
@@ -114,10 +121,13 @@ func get_facing() -> float:
 	return facing
 
 func get_attack_power() -> int:
-	return int(_profile.get_stats().attack)
+	return get_canonical_attack_power()
+
+func get_canonical_attack_power() -> int:
+	return int(_profile.get_canonical_stats().attack)
 
 func get_defense() -> int:
-	return int(_profile.get_stats().defense)
+	return int(_profile.get_canonical_stats().defense)
 
 func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
 	return _health.apply_authoritative_damage(amount, knockback)
@@ -138,6 +148,28 @@ func get_resource_snapshot() -> Dictionary:
 
 func get_profile() -> PlayerProfile:
 	return _profile
+
+func export_save_payload() -> Dictionary:
+	return {"level": _level, "experience": _experience, "experience_to_next": _experience_to_next, "gold": _gold, "mana": _mana, "health": _health.current, "equipment": _profile.get_equipment_payload()}
+
+func restore_save_payload(payload: Dictionary) -> bool:
+	var repository := SaveRepository.new()
+	if not repository.validate_payload(payload).ok:
+		return false
+	_level = int(payload.level)
+	_experience = int(payload.experience)
+	_experience_to_next = int(payload.experience_to_next)
+	_gold = int(payload.gold)
+	_profile.set_level(_level)
+	if not _profile.restore_equipment(payload.equipment):
+		return false
+	var stats := _profile.get_canonical_stats()
+	_maximum_mana = int(stats.max_mana)
+	_mana = clampi(int(payload.mana), 0, _maximum_mana)
+	_health.set_maximum(int(stats.max_health), false)
+	_health.set_current(int(payload.health))
+	resources_changed.emit(get_resource_snapshot())
+	return true
 
 func cycle_equipment(slot: StringName) -> void:
 	var ids := ItemCatalog.ids_for_slot(slot)

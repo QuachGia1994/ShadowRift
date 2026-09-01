@@ -35,6 +35,9 @@ func equip(slot: StringName, item_id: StringName) -> bool:
 func get_stats() -> Dictionary:
 	return _stats.duplicate(true)
 
+func get_canonical_stats() -> Dictionary:
+	return _recompute()
+
 func get_equipment_payload() -> Dictionary:
 	return {"weapon": String(weapon_id), "armor": String(armor_id)}
 
@@ -51,6 +54,12 @@ func restore_equipment(payload: Dictionary) -> bool:
 func is_canonical(candidate: Dictionary) -> bool:
 	return candidate == _recompute()
 
+func repair_if_modified() -> bool:
+	if is_canonical(_stats):
+		return false
+	_commit_recompute()
+	return true
+
 func _commit_recompute() -> void:
 	_stats = _recompute()
 	stats_changed.emit(get_stats())
@@ -66,4 +75,3 @@ func _recompute() -> Dictionary:
 		"weapon_name": str(weapon.get("name", "Unknown")),
 		"armor_name": str(armor.get("name", "Unknown"))
 	}
-

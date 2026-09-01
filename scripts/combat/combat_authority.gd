@@ -12,7 +12,7 @@ func resolve_hit(source: Node2D, target: Node2D, attack_kind: StringName) -> boo
 		return false
 	if not source.has_method("get_attack_power") or not target.has_method("get_defense") or not target.has_method("receive_authoritative_hit"):
 		return false
-	var attack_power := clampi(int(source.call("get_attack_power")), 1, DAMAGE_CAP)
+	var attack_power := _canonical_attack(source)
 	var defense := clampi(int(target.call("get_defense")), 0, DAMAGE_CAP)
 	var raw_damage := int(round(float(attack_power) * float(ATTACK_MULTIPLIERS[attack_kind])))
 	var resolved_damage := clampi(raw_damage - int(defense * 0.55), 1, DAMAGE_CAP)
@@ -27,3 +27,8 @@ func resolve_environment_hit(target: Node2D, raw_damage: int, knockback: Vector2
 
 func _valid_combatants(source: Node2D, target: Node2D) -> bool:
 	return is_instance_valid(source) and is_instance_valid(target) and source != target and source.is_inside_tree() and target.is_inside_tree()
+
+func _canonical_attack(source: Node2D) -> int:
+	if source.has_method("get_canonical_attack_power"):
+		return clampi(int(source.call("get_canonical_attack_power")), 1, DAMAGE_CAP)
+	return clampi(int(source.call("get_attack_power")), 1, DAMAGE_CAP)

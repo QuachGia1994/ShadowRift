@@ -5,12 +5,14 @@ const GROUND_Y := 440.0
 
 var _hero: Hero
 var _boss: BossController
+var _save_repository := SaveRepository.new()
 
 func _ready() -> void:
 	_create_zone()
 	_create_combat_authority()
 	_create_controls()
 	_create_hero()
+	_load_progress()
 	_create_enemies()
 	_create_boss()
 	_create_hud()
@@ -40,11 +42,13 @@ func _create_enemies() -> void:
 	warden.configure(EnemyController.Kind.WARDEN, _hero)
 	warden.position = Vector2(620.0, GROUND_Y - 28.0)
 	warden.defeated.connect(_hero.grant_rewards)
+	warden.defeated.connect(_save_progress.unbind(2))
 	add_child(warden)
 	var wraith := EnemyController.new()
 	wraith.configure(EnemyController.Kind.WRAITH, _hero)
 	wraith.position = Vector2(1160.0, GROUND_Y - 28.0)
 	wraith.defeated.connect(_hero.grant_rewards)
+	wraith.defeated.connect(_save_progress.unbind(2))
 	add_child(wraith)
 
 func _create_boss() -> void:
@@ -52,6 +56,7 @@ func _create_boss() -> void:
 	_boss.configure(_hero)
 	_boss.position = Vector2(1970.0, GROUND_Y - 42.0)
 	_boss.defeated.connect(_hero.grant_rewards)
+	_boss.defeated.connect(_save_progress.unbind(2))
 	add_child(_boss)
 
 func _create_hud() -> void:
@@ -62,6 +67,19 @@ func _create_hud() -> void:
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.configure(_hero, _boss)
 	layer.add_child(hud)
+
+func _load_progress() -> void:
+	var result := _save_repository.load_game()
+	if result.ok:
+		_hero.restore_save_payload(result.payload)
+
+func _save_progress() -> void:
+	if is_instance_valid(_hero):
+		_save_repository.save_game(_hero.export_save_payload())
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+		_save_progress()
 
 func _create_zone() -> void:
 	var zone := ZoneBuilder.new()

@@ -42,5 +42,9 @@ func set_maximum(next_maximum: int, preserve_ratio: bool = true) -> void:
 	current = clampi(int(round(maximum * ratio)) if preserve_ratio else mini(current, maximum), 0, maximum)
 	health_changed.emit(current, maximum)
 
+func set_current(next_current: int) -> void:
+	current = clampi(next_current, 0, maximum)
+	health_changed.emit(current, maximum)
+
 func is_invulnerable() -> bool:
 	return _iframe_remaining > 0.0
