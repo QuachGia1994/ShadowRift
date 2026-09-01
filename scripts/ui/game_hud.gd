@@ -138,13 +138,15 @@ func _armor_rect() -> Rect2:
 	return Rect2(safe.position + Vector2(154.0, 114.0), Vector2(146.0, 29.0))
 
 func _safe_area_rect() -> Rect2:
-	var fallback := Rect2(Vector2(SAFE_EDGE_FALLBACK, SAFE_EDGE_FALLBACK), Vector2(maxf(1.0, size.x - SAFE_EDGE_FALLBACK * 2.0), maxf(1.0, size.y - SAFE_EDGE_FALLBACK * 2.0)))
+	var viewport_size := get_viewport_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		viewport_size = size
+	var fallback := Rect2(Vector2(SAFE_EDGE_FALLBACK, SAFE_EDGE_FALLBACK), Vector2(maxf(1.0, viewport_size.x - SAFE_EDGE_FALLBACK * 2.0), maxf(1.0, viewport_size.y - SAFE_EDGE_FALLBACK * 2.0)))
 	var display_size := DisplayServer.screen_get_size()
 	var display_safe := DisplayServer.get_display_safe_area()
 	if display_size.x <= 0 or display_size.y <= 0 or display_safe.size.x <= 0 or display_safe.size.y <= 0:
 		return fallback
-	var scale := Vector2(size.x / float(display_size.x), size.y / float(display_size.y))
-	return Rect2(Vector2(display_safe.position) * scale, Vector2(display_safe.size) * scale)
+	return MobileControls.scale_safe_area(viewport_size, display_size, display_safe)
 
 func _build_controls() -> void:
 	_panel = NinePatchRect.new()
@@ -312,10 +314,11 @@ func _layout(safe: Rect2) -> void:
 	_banner_title.position = Vector2(18.0, 9.0)
 	_banner_hint.position = Vector2(18.0, 34.0)
 	var pause_panel: NinePatchRect = _pause_overlay.get_meta("panel")
-	pause_panel.position = Vector2(size.x * 0.5 - 155.0, size.y * 0.5 - 61.0)
+	var pause_center := safe.get_center()
+	pause_panel.position = pause_center - Vector2(155.0, 61.0)
 	pause_panel.size = Vector2(310.0, 122.0)
-	_pause_title.position = Vector2(size.x * 0.5 - 54.0, size.y * 0.5 - 32.0)
-	_pause_hint.position = Vector2(size.x * 0.5 - 62.0, size.y * 0.5 + 8.0)
+	_pause_title.position = pause_center - Vector2(54.0, 32.0)
+	_pause_hint.position = pause_center + Vector2(-62.0, 8.0)
 
 func _set_cached(label: Label, key: String, value: String) -> void:
 	if _text_cache.get(key) != value:

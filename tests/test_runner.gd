@@ -325,11 +325,14 @@ func _test_full_scene_boot_and_pause() -> void:
 	_expect(not is_instance_valid(game._boss), "stage one starts without the final boss")
 	_expect(game._stage_index == 0 and game._stage_remaining == 3, "stage one spawns its authored encounter")
 	_expect(is_instance_valid(game._hud), "game scene creates HUD")
+	_expect(game._hud.get_parent() is CanvasLayer, "HUD stays screen-space inside a CanvasLayer")
+	_expect(game._hud.size.x >= 900.0 and game._hud.size.y >= 500.0, "HUD owns the full logical viewport")
 	_expect(is_instance_valid(game._controls), "game scene creates mobile controls")
 	_expect(game._controls.process_mode == Node.PROCESS_MODE_ALWAYS, "pause control remains responsive while paused")
 	game._load_stage(2, false)
 	_expect(game._stage_index == 2 and is_instance_valid(game._boss), "final stage loads Rift Warden")
 	_expect(game._hud._stage_label.text.begins_with("3/3"), "HUD reflects current stage progression")
+	_expect(game._hud._boss == game._boss, "HUD binds the final boss through its native boss API")
 	var hud_bars := 0
 	for child in game._hud.get_children():
 		if child is TextureProgressBar:
@@ -348,6 +351,9 @@ func _test_full_scene_boot_and_pause() -> void:
 	game._controls._left_touch = 9
 	game._toggle_user_pause()
 	_expect(paused and game._hud._paused, "pause freezes tree and shows overlay")
+	var pause_panel: NinePatchRect = game._hud._pause_overlay.get_meta("panel")
+	var pause_center := pause_panel.position + pause_panel.size * 0.5
+	_expect(pause_center.distance_to(game._hud._safe_area_rect().get_center()) < 1.0, "pause panel remains centered inside the safe screen area")
 	_expect(game._controls._left_touch == -1, "pause clears active touch ownership")
 	game._toggle_user_pause()
 	_expect(not paused and not game._hud._paused, "resume restores gameplay")

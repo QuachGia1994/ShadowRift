@@ -131,23 +131,21 @@ func _create_hero() -> void:
     _hero = Hero.new()
     _hero.position = Vector2(180.0, 406.0)
     _hero.died.connect(_on_hero_died)
-    _hero.resources_changed.connect(_on_hero_resources_changed)
     _hero.persistence_requested.connect(_save_progress)
     add_child(_hero)
 
 func _create_hud() -> void:
+    var layer := CanvasLayer.new()
+    layer.layer = 10
+    add_child(layer)
     _hud = GameHud.new()
     _hud.add_to_group("hud")
-    add_child(_hud)
-    if is_instance_valid(_hero):
-        _on_hero_resources_changed(_hero.get_resource_snapshot())
-        _hud.update_stage(_stage_index, _level_manager.count() if _level_manager else 3)
-
-func _on_hero_resources_changed(snapshot: Dictionary) -> void:
-    if is_instance_valid(_hud):
-        _hud.update_resources(snapshot)
-        if is_instance_valid(_hero):
-            _hud.update_equipment(_hero.get_profile().get_equipment_payload())
+    layer.add_child(_hud)
+    _hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    _hud.configure(_hero, null)
+    var config := _level_manager.get_config(_stage_index) if _level_manager else null
+    var stage_name := config.display_name if config else "RIFT APPROACH"
+    _hud.set_stage(_stage_index + 1, _level_manager.count() if _level_manager else 3, stage_name)
 
 func _on_hero_died() -> void:
     if _respawning or _transitioning:
@@ -226,8 +224,8 @@ func _load_stage(index: int, with_transition: bool = true) -> void:
         _spawn_boss(config.boss_position)
     # HUD update
     if is_instance_valid(_hud):
-        _hud.update_stage(_stage_index, _level_manager.count() if _level_manager else 3)
-        _hud.update_boss(null)
+        _hud.set_stage(_stage_index + 1, _level_manager.count() if _level_manager else 3, config.display_name if config else "STAGE")
+        _hud.bind_boss(_boss)
     _stage_remaining = int(config.enemies.size()) if config else 0
     if config and config.has_boss:
         _stage_remaining += 1
@@ -259,10 +257,7 @@ func _spawn_boss(pos: Vector2) -> void:
     _boss.position = pos
     _boss.defeated.connect(_on_boss_defeated)
     _boss.death_finished.connect(_on_boss_death_finished)
-    _boss.health_changed.connect(_on_boss_health_changed)
     _stage_root.add_child(_boss)
-    if is_instance_valid(_hud):
-        _hud.update_boss(_boss.get_health_snapshot())
 
 func _on_enemy_defeated(_exp: int, _gold: int) -> void:
     _stage_remaining = maxi(0, _stage_remaining - 1)
@@ -278,12 +273,8 @@ func _on_boss_defeated(exp_reward: int, gold_reward: int) -> void:
 func _on_boss_death_finished() -> void:
     _stage_clear = true
     if is_instance_valid(_hud):
-        _hud.show_run_complete()
+        _hud.show_banner("RIFT SEALED", "Run complete", 1.0)
     get_tree().create_timer(1.2).timeout.connect(_advance_or_complete)
-
-func _on_boss_health_changed(current: int, maximum: int) -> void:
-    if is_instance_valid(_hud):
-        _hud.update_boss(Vector2i(current, maximum))
 
 func _on_checkpoint_reached(id: StringName, pos: Vector2) -> void:
     if _level_manager:
@@ -299,7 +290,7 @@ func _on_stage_changed(index: int, config: LevelConfig) -> void:
 
 func _on_run_completed() -> void:
     if is_instance_valid(_hud):
-        _hud.show_run_complete()
+        _hud.show_banner("RIFT SEALED", "Run complete", 1.0)
 
 func _on_exit_reached() -> void:
     if _stage_clear or _stage_remaining <= 0:
@@ -326,7 +317,9 @@ func _play_transition(from: int, to: int) -> void:
     if not is_instance_valid(_hud):
         await get_tree().create_timer(0.12).timeout
         return
-    _hud.show_transition(from, to)
+    var config := _level_manager.get_config(to) if _level_manager else null
+    var stage_name := config.display_name if config else "NEXT RIFT"
+    _hud.show_banner("STAGE %d" % (to + 1), stage_name, 0.28)
     await get_tree().create_timer(0.28).timeout
 
 func _toggle_user_pause() -> void:
