@@ -3,6 +3,7 @@ class_name Hero
 
 signal attack_requested(combo_step: int)
 signal state_changed(previous: State, current: State)
+signal resources_changed(snapshot: Dictionary)
 
 enum State { IDLE, MOVE, JUMP, ATTACK, HURT, DEATH }
 
@@ -21,6 +22,13 @@ var _hurt_time := 0.0
 var _dead := false
 var _health: HealthComponent
 var _hitbox: Hitbox
+var _mana := 100
+var _maximum_mana := 100
+var _level := 1
+var _experience := 0
+var _experience_to_next := 100
+var _gold := 0
+var _key_actions := {&"attack": false, &"jump": false, &"skill_one": false, &"skill_two": false}
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
@@ -28,6 +36,20 @@ func _ready() -> void:
 	_add_combat_nodes()
 	_add_camera()
 	queue_redraw()
+	resources_changed.emit(get_resource_snapshot())
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	match event.keycode:
+		KEY_J:
+			_key_actions[&"attack"] = true
+		KEY_SPACE:
+			_key_actions[&"jump"] = true
+		KEY_K:
+			_key_actions[&"skill_one"] = true
+		KEY_L:
+			_key_actions[&"skill_two"] = true
 
 func _physics_process(delta: float) -> void:
 	if _dead:
@@ -56,6 +78,10 @@ func _physics_process(delta: float) -> void:
 	if _jump_pressed() and is_on_floor():
 		velocity.y = JUMP_SPEED
 		_set_state(State.JUMP)
+	elif _skill_pressed(&"skill_two"):
+		_start_skill(&"skill_two", 34, 0.34)
+	elif _skill_pressed(&"skill_one"):
+		_start_skill(&"skill_one", 22, 0.28)
 	elif _attack_pressed():
 		_start_attack()
 	elif not is_on_floor():
@@ -94,6 +120,18 @@ func get_defense() -> int:
 func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
 	return _health.apply_authoritative_damage(amount, knockback)
 
+func grant_rewards(experience: int, gold: int) -> void:
+	_experience += maxi(0, experience)
+	_gold += maxi(0, gold)
+	while _experience >= _experience_to_next:
+		_experience -= _experience_to_next
+		_level += 1
+		_experience_to_next = int(round(_experience_to_next * 1.24))
+	resources_changed.emit(get_resource_snapshot())
+
+func get_resource_snapshot() -> Dictionary:
+	return {"health": _health.current, "max_health": _health.maximum, "mana": _mana, "max_mana": _maximum_mana, "level": _level, "exp": _experience, "exp_to_next": _experience_to_next, "gold": _gold}
+
 func _start_attack() -> void:
 	_combo_step = 1 if _combo_grace <= 0.0 else 2
 	_attack_time = ATTACK_DURATION
@@ -111,6 +149,16 @@ func _update_attack(delta: float) -> void:
 		_combo_grace = COMBO_GRACE
 		_set_state(State.JUMP if not is_on_floor() else State.IDLE)
 
+func _start_skill(kind: StringName, mana_cost: int, duration: float) -> void:
+	if _mana < mana_cost:
+		return
+	_mana -= mana_cost
+	_attack_time = duration
+	velocity.x *= 0.2
+	_set_state(State.ATTACK)
+	_hitbox.activate(kind, duration * 0.78, Vector2(42.0 * facing, -7.0))
+	resources_changed.emit(get_resource_snapshot())
+
 func _update_hurt(delta: float) -> void:
 	_hurt_time -= delta
 	velocity.x = move_toward(velocity.x, 0.0, 520.0 * delta)
@@ -118,10 +166,18 @@ func _update_hurt(delta: float) -> void:
 		_set_state(State.JUMP if not is_on_floor() else State.IDLE)
 
 func _attack_pressed() -> bool:
-	return Input.is_key_pressed(KEY_J) or (is_instance_valid(_controls) and _controls.consume_action(&"attack"))
+	return _consume_key_action(&"attack") or (is_instance_valid(_controls) and _controls.consume_action(&"attack"))
 
 func _jump_pressed() -> bool:
-	return Input.is_key_pressed(KEY_SPACE)
+	return _consume_key_action(&"jump")
+
+func _skill_pressed(action: StringName) -> bool:
+	return _consume_key_action(action) or (is_instance_valid(_controls) and _controls.consume_action(action))
+
+func _consume_key_action(action: StringName) -> bool:
+	var was_pending: bool = _key_actions[action]
+	_key_actions[action] = false
+	return was_pending
 
 func _set_state(next_state: State) -> void:
 	if next_state == state:
@@ -152,9 +208,10 @@ func _add_camera() -> void:
 
 func _add_combat_nodes() -> void:
 	_health = HealthComponent.new()
-	_health.configure(140, 0.55)
+	_health.health_changed.connect(_on_health_changed)
 	_health.damaged.connect(apply_hurt)
 	_health.depleted.connect(die)
+	_health.configure(140, 0.55)
 	add_child(_health)
 	var hurtbox := Hurtbox.new()
 	hurtbox.configure(self, Vector2(30.0, 46.0))
@@ -163,6 +220,9 @@ func _add_combat_nodes() -> void:
 	_hitbox = Hitbox.new()
 	_hitbox.configure(self, Vector2(46.0, 42.0))
 	add_child(_hitbox)
+
+func _on_health_changed(_current: int, _maximum: int) -> void:
+	resources_changed.emit(get_resource_snapshot())
 
 func _draw() -> void:
 	var body_color := Color(0.18, 0.23, 0.34) if state != State.HURT else Color(0.92, 0.32, 0.34)

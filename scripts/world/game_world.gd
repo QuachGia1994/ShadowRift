@@ -4,6 +4,7 @@ const WORLD_WIDTH := 2400.0
 const GROUND_Y := 440.0
 
 var _hero: Hero
+var _boss: BossController
 
 func _ready() -> void:
 	_create_zone()
@@ -11,6 +12,8 @@ func _ready() -> void:
 	_create_controls()
 	_create_hero()
 	_create_enemies()
+	_create_boss()
+	_create_hud()
 	queue_redraw()
 
 func _create_combat_authority() -> void:
@@ -36,11 +39,29 @@ func _create_enemies() -> void:
 	var warden := EnemyController.new()
 	warden.configure(EnemyController.Kind.WARDEN, _hero)
 	warden.position = Vector2(620.0, GROUND_Y - 28.0)
+	warden.defeated.connect(_hero.grant_rewards)
 	add_child(warden)
 	var wraith := EnemyController.new()
 	wraith.configure(EnemyController.Kind.WRAITH, _hero)
 	wraith.position = Vector2(1160.0, GROUND_Y - 28.0)
+	wraith.defeated.connect(_hero.grant_rewards)
 	add_child(wraith)
+
+func _create_boss() -> void:
+	_boss = BossController.new()
+	_boss.configure(_hero)
+	_boss.position = Vector2(1970.0, GROUND_Y - 42.0)
+	_boss.defeated.connect(_hero.grant_rewards)
+	add_child(_boss)
+
+func _create_hud() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+	var hud := GameHud.new()
+	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud.configure(_hero, _boss)
+	layer.add_child(hud)
 
 func _create_zone() -> void:
 	var zone := ZoneBuilder.new()
