@@ -3,7 +3,7 @@ class_name CombatAuthority
 
 const MAX_MELEE_DISTANCE := 96.0
 const DAMAGE_CAP := 9999
-const ATTACK_MULTIPLIERS := {&"basic_one": 1.0, &"basic_two": 1.28, &"skill_one": 1.65, &"skill_two": 2.1}
+const ATTACK_MULTIPLIERS := {&"basic_one": 1.0, &"basic_two": 1.28, &"skill_one": 1.65, &"skill_two": 2.1, &"enemy_basic": 1.0, &"boss_basic": 1.35}
 
 func resolve_hit(source: Node2D, target: Node2D, attack_kind: StringName) -> bool:
 	if not _valid_combatants(source, target) or not ATTACK_MULTIPLIERS.has(attack_kind):

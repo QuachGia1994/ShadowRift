@@ -10,7 +10,7 @@ func _ready() -> void:
 	_create_combat_authority()
 	_create_controls()
 	_create_hero()
-	_create_dummy_enemy()
+	_create_enemies()
 	queue_redraw()
 
 func _create_combat_authority() -> void:
@@ -32,10 +32,15 @@ func _create_hero() -> void:
 	_hero.position = Vector2(180.0, GROUND_Y - 34.0)
 	add_child(_hero)
 
-func _create_dummy_enemy() -> void:
-	var dummy := DummyEnemy.new()
-	dummy.position = Vector2(430.0, GROUND_Y - 27.0)
-	add_child(dummy)
+func _create_enemies() -> void:
+	var warden := EnemyController.new()
+	warden.configure(EnemyController.Kind.WARDEN, _hero)
+	warden.position = Vector2(620.0, GROUND_Y - 28.0)
+	add_child(warden)
+	var wraith := EnemyController.new()
+	wraith.configure(EnemyController.Kind.WRAITH, _hero)
+	wraith.position = Vector2(1160.0, GROUND_Y - 28.0)
+	add_child(wraith)
 
 func _create_zone() -> void:
 	var zone := ZoneBuilder.new()
