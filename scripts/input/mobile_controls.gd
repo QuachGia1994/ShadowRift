@@ -127,9 +127,10 @@ func _draw_joystick() -> void:
 	draw_circle(center, JOYSTICK_RADIUS + 10.0, Color(0.03, 0.045, 0.075, outer_alpha * 0.45))
 	draw_circle(center, JOYSTICK_RADIUS, Color(0.045, 0.065, 0.105, outer_alpha))
 	draw_arc(center, JOYSTICK_RADIUS, 0.0, TAU, 48, Color(0.78, 0.66, 0.39, 0.86 if active else 0.58), 3.0)
-	for direction in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
-		var inner := center + direction * 50.0
-		var outer := center + direction * 59.0
+	var directions: Array[Vector2] = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]
+	for direction in directions:
+		var inner: Vector2 = center + direction * 50.0
+		var outer: Vector2 = center + direction * 59.0
 		draw_line(inner, outer, Color(0.75, 0.79, 0.86, 0.34), 2.0)
 	var knob_offset := Vector2.ZERO
 	if active:
