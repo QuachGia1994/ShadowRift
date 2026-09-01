@@ -28,6 +28,7 @@ jobs:
         run: python tools/verify_project.py
       - name: Generate mobile texture memory report
         run: |
+          pip install pillow
           python tools/report_mobile_memory.py
           cat build/reports/mobile-memory-report.txt
       - name: Import and parse project

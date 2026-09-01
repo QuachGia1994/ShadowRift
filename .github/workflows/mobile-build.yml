@@ -64,6 +64,7 @@ jobs:
           apk_bytes="$(stat -c %s exports/android/ShadowRift-prerelease.apk)"
           echo "APK bytes: $apk_bytes ($(( apk_bytes / 1024 / 1024 )) MiB)"
           echo "apk_bytes=$apk_bytes" >> "$GITHUB_STEP_SUMMARY"
+          pip install pillow
           python3 tools/report_mobile_memory.py
           cat build/reports/mobile-memory-report.txt | tee build/reports/mobile-build-summary.txt
           {
