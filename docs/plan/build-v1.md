@@ -13,10 +13,10 @@
 | 7. Save | PARTIAL | Checksum, tamper test, and invariants authored | Godot filesystem test |
 | 8. Performance | PARTIAL | Pools, 60 FPS lock, 50 draw-call monitor | Profile on two real devices |
 | 9. Mobile exports | BLOCKED | Android and iOS presets authored | Godot templates, Android SDK/device, macOS/Xcode/Team ID/device |
-| 10. Authority server | PASS | Deterministic domain and 8 Node tests | Cloudflare account deployment |
+| 10. Authority server | PASS | 8 Node tests and live Cloudflare Durable Object Worker | Device/network soak test |
 | 11. Protected client | PARTIAL | Intent-only protocol, resumable token, fail-closed mobile feature | Godot 4.7.2 parse/runtime CI |
 | 12. Public mobile CI | PARTIAL | Verify, Android, unsigned iOS, and manual deploy workflows | First public GitHub run |
 
 ## Next action
 
-Push the complete repository to the public GitHub remote, let the first workflows start, and deploy the Worker after configuring Cloudflare credentials. Replace the placeholder server URL before distributing the APK. Android can then be tested directly; iOS still requires a real Apple Team ID, certificate, provisioning profile, and device. Do not mark a platform PASS until launch, input, combat, server resume, pause/resume, disconnect lock, and 60 FPS are observed on that device.
+Push the complete repository to the public GitHub remote and let the first workflows start. The protected client is configured for the deployed Worker. Android can then be tested directly; iOS still requires a real Apple Team ID, certificate, provisioning profile, and device. Do not mark a platform PASS until launch, input, combat, server resume, pause/resume, disconnect lock, and 60 FPS are observed on that device.

@@ -38,7 +38,7 @@ npm run typecheck
 npm run deploy
 ```
 
-Set `shadow_rift/server/base_url` in `project.godot` to the deployed HTTPS Worker URL before distributing a mobile build. The public repository contains no signing or Cloudflare credential. Manual server deployment reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from GitHub environment secrets.
+The protected client currently uses `https://shadowrift-authority.kim-phong619.workers.dev`; change `shadow_rift/server/base_url` only when deploying a replacement authority. The public repository contains no signing or Cloudflare credential. Manual server deployment reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from GitHub environment secrets.
 
 ## Mobile debug export
 

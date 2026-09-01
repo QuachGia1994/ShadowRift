@@ -24,7 +24,7 @@ window/handheld/orientation=1
 
 [shadow_rift]
 
-server/base_url="https://shadowrift-authority.YOUR-SUBDOMAIN.workers.dev"
+server/base_url="https://shadowrift-authority.kim-phong619.workers.dev"
 
 [rendering]
 
