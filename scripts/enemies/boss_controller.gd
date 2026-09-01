@@ -3,6 +3,7 @@ class_name BossController
 
 signal health_changed(current: int, maximum: int)
 signal defeated(exp_reward: int, gold_reward: int)
+signal death_finished
 
 enum State { WATCH, CHASE, WINDUP, STRIKE, HURT, DEATH }
 
@@ -17,6 +18,8 @@ var _state_time := 0.0
 var _attack_cooldown := 0.0
 var _attack_direction := -1.0
 var _sprite: AnimatedSprite2D
+var _body_collision: CollisionShape2D
+var _motion_clock := 0.0
 
 func configure(hero_target: Hero) -> void:
 	target = hero_target
@@ -31,6 +34,7 @@ func _physics_process(delta: float) -> void:
 	_hitbox.tick(delta)
 	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 	_state_time = maxf(0.0, _state_time - delta)
+	_motion_clock += delta
 	if not is_on_floor():
 		velocity.y += get_gravity().y * delta
 	match state:
@@ -56,6 +60,7 @@ func _physics_process(delta: float) -> void:
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 65) % 2 == 0
 	_sprite.flip_h = _attack_direction < 0.0
 	_apply_animation()
+	_apply_visual_motion()
 
 func get_attack_power() -> int:
 	return 25
@@ -74,8 +79,8 @@ func _update_chase() -> void:
 		state = State.WATCH
 		return
 	_attack_direction = signf(target.global_position.x - global_position.x)
-	var distance := _distance_to_target()
-	if distance <= 92.0 and _attack_cooldown <= 0.0:
+	var distance := _horizontal_distance_to_target()
+	if distance <= 114.0 and _vertical_distance_to_target() <= 76.0 and _attack_cooldown <= 0.0:
 		state = State.WINDUP
 		_state_time = 0.46
 		velocity.x = 0.0
@@ -84,14 +89,20 @@ func _update_chase() -> void:
 
 func _start_strike() -> void:
 	state = State.STRIKE
-	_state_time = 0.36
+	_state_time = 0.38
 	_attack_cooldown = 1.35
-	velocity.x = _attack_direction * 265.0
-	_hitbox.activate(&"boss_basic", 0.26, Vector2(_attack_direction * 45.0, -3.0))
+	velocity.x = _attack_direction * 275.0
+	_hitbox.activate(&"boss_basic", 0.28, Vector2(_attack_direction * 58.0, -3.0))
 	_spawn_strike_vfx()
 
 func _distance_to_target() -> float:
 	return global_position.distance_to(target.global_position) if is_instance_valid(target) else INF
+
+func _horizontal_distance_to_target() -> float:
+	return absf(target.global_position.x - global_position.x) if is_instance_valid(target) else INF
+
+func _vertical_distance_to_target() -> float:
+	return absf(target.global_position.y - global_position.y) if is_instance_valid(target) else INF
 
 func _on_health_changed(current: int, maximum: int) -> void:
 	health_changed.emit(current, maximum)
@@ -99,27 +110,34 @@ func _on_health_changed(current: int, maximum: int) -> void:
 func _on_damaged(_amount: int, knockback: Vector2) -> void:
 	if state in [State.WATCH, State.CHASE]:
 		state = State.HURT
-		_state_time = 0.16
+		_state_time = 0.25
 		velocity = knockback
 
 func _on_depleted() -> void:
 	if state == State.DEATH:
 		return
 	state = State.DEATH
+	velocity = Vector2.ZERO
 	_hitbox.monitoring = false
+	if is_instance_valid(_body_collision):
+		_body_collision.set_deferred("disabled", true)
+	_apply_animation()
 	defeated.emit(120, 60)
+	var death_duration := _animation_duration(&"death")
 	var tween := create_tween()
-	tween.tween_property(self, "modulate", Color(0.32, 0.06, 0.12, 0.0), 0.75)
+	tween.tween_interval(death_duration)
+	tween.tween_property(self, "modulate", Color(0.32, 0.06, 0.12, 0.0), 0.22)
+	tween.tween_callback(func() -> void: death_finished.emit())
 	tween.tween_callback(queue_free)
 
 func _add_body_shape() -> void:
-	var collision := CollisionShape2D.new()
+	_body_collision = CollisionShape2D.new()
 	var shape := CapsuleShape2D.new()
 	shape.radius = 23.0
 	shape.height = 76.0
-	collision.shape = shape
-	collision.position = Vector2(0.0, -13.0)
-	add_child(collision)
+	_body_collision.shape = shape
+	_body_collision.position = Vector2(0.0, -13.0)
+	add_child(_body_collision)
 
 func _add_combat_nodes() -> void:
 	_health = HealthComponent.new()
@@ -133,7 +151,7 @@ func _add_combat_nodes() -> void:
 	hurtbox.position = Vector2(0.0, -12.0)
 	add_child(hurtbox)
 	_hitbox = Hitbox.new()
-	_hitbox.configure(self, Vector2(62.0, 58.0))
+	_hitbox.configure(self, Vector2(84.0, 64.0))
 	add_child(_hitbox)
 
 func _add_sprite() -> void:
@@ -163,6 +181,39 @@ func _apply_animation() -> void:
 			anim = &"death"
 	if _sprite.animation != anim:
 		_sprite.play(anim)
+
+func _animation_duration(animation: StringName) -> float:
+	var fps := maxf(0.01, _sprite.sprite_frames.get_animation_speed(animation))
+	return float(_sprite.sprite_frames.get_frame_count(animation)) / fps
+
+func _apply_visual_motion() -> void:
+	if not is_instance_valid(_sprite):
+		return
+	var base_scale := 128.0 / 256.0
+	_sprite.position = Vector2.ZERO
+	_sprite.rotation = 0.0
+	_sprite.scale = Vector2(base_scale, base_scale)
+	match state:
+		State.WATCH:
+			_sprite.position.y = sin(_motion_clock * 3.8) * 2.0
+			_sprite.scale = Vector2(base_scale * (1.0 + sin(_motion_clock * 2.2) * 0.012), base_scale)
+		State.CHASE:
+			_sprite.position.y = absf(sin(_motion_clock * 7.0)) * -3.0
+			_sprite.rotation = deg_to_rad(1.8 * _attack_direction)
+		State.WINDUP:
+			var charge := clampf(1.0 - (_state_time / 0.46), 0.0, 1.0)
+			_sprite.position.x = -6.0 * _attack_direction * charge
+			_sprite.rotation = deg_to_rad(-7.0 * _attack_direction * charge)
+			_sprite.scale = Vector2(base_scale * (1.0 - charge * 0.04), base_scale * (1.0 + charge * 0.06))
+		State.STRIKE:
+			_sprite.position.x = 10.0 * _attack_direction
+			_sprite.rotation = deg_to_rad(9.0 * _attack_direction)
+			_sprite.scale = Vector2(base_scale * 1.08, base_scale * 0.94)
+		State.HURT:
+			_sprite.position.x = -5.0 * _attack_direction
+			_sprite.rotation = deg_to_rad(-4.5 * _attack_direction)
+		State.DEATH:
+			_sprite.position.y = 3.0
 
 func _spawn_strike_vfx() -> void:
 	var vfx := Sprite2D.new()

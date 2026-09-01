@@ -2,19 +2,29 @@ extends Node2D
 class_name ZoneBuilder
 
 const TILE_SIZE := 32
-const ZONE_COLUMNS := 75
 const GROUND_ROW := 13
 const ZONE_TILE_SET := preload("res://assets/environment/rift_zone_tileset.tres")
 const PLATFORM_TEXTURE := preload("res://assets/environment/platform_rune.png")
 
 var _foreground: TileMapLayer
+var _columns := 75
+var _stage_index := 0
 
-func build() -> void:
+func configure(stage_index: int, world_width: float) -> void:
+	_stage_index = maxi(0, stage_index)
+	_columns = maxi(1, int(ceil(world_width / float(TILE_SIZE))))
+
+func build(stage_config: Dictionary = {}) -> void:
+	var width := float(stage_config.get("width", float(_columns * TILE_SIZE)))
+	_columns = maxi(1, int(ceil(width / float(TILE_SIZE))))
 	_create_tile_layers(ZONE_TILE_SET)
 	_create_ground_collision()
-	_create_one_way_platform(Vector2(660.0, 330.0), Vector2(224.0, 18.0))
-	_create_one_way_platform(Vector2(1260.0, 280.0), Vector2(192.0, 18.0))
-	_create_hazard(Vector2(930.0, 419.0))
+	for entry in stage_config.get("platforms", []):
+		if entry is Array and entry.size() == 2:
+			_create_one_way_platform(entry[0], entry[1])
+	for center in stage_config.get("hazards", []):
+		if center is Vector2:
+			_create_hazard(center)
 
 func _create_tile_layers(tile_set: TileSet) -> void:
 	var background := TileMapLayer.new()
@@ -34,23 +44,20 @@ func _create_tile_layers(tile_set: TileSet) -> void:
 	_foreground.tile_set = tile_set
 	_foreground.z_index = 0
 	add_child(_foreground)
-	for x in range(ZONE_COLUMNS):
-		background.set_cell(Vector2i(x, 7 + int(sin(float(x) * 0.42) * 2.0)), 0, Vector2i(0, 0))
-		midground.set_cell(Vector2i(x, 11 + int(sin(float(x) * 0.28))), 0, Vector2i(1, 0))
+	for x in range(_columns):
+		var phase := float(_stage_index) * 0.75
+		background.set_cell(Vector2i(x, 7 + int(sin(float(x) * 0.42 + phase) * 2.0)), 0, Vector2i(0, 0))
+		midground.set_cell(Vector2i(x, 11 + int(sin(float(x) * 0.28 + phase))), 0, Vector2i(1, 0))
 		_foreground.set_cell(Vector2i(x, GROUND_ROW), 0, Vector2i(2, 0))
 		_foreground.set_cell(Vector2i(x, GROUND_ROW + 1), 0, Vector2i(1, 0))
-	for x in range(18, 25):
-		_foreground.set_cell(Vector2i(x, 10), 0, Vector2i(2, 0))
-	for x in range(37, 43):
-		_foreground.set_cell(Vector2i(x, 8), 0, Vector2i(2, 0))
 
 func _create_ground_collision() -> void:
 	var ground := StaticBody2D.new()
 	ground.collision_layer = 1
-	ground.position = Vector2(ZONE_COLUMNS * TILE_SIZE * 0.5, (GROUND_ROW + 1) * TILE_SIZE)
+	ground.position = Vector2(_columns * TILE_SIZE * 0.5, (GROUND_ROW + 1) * TILE_SIZE)
 	var collision := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(ZONE_COLUMNS * TILE_SIZE, TILE_SIZE * 2.0)
+	shape.size = Vector2(_columns * TILE_SIZE, TILE_SIZE * 2.0)
 	collision.shape = shape
 	ground.add_child(collision)
 	add_child(ground)
@@ -64,7 +71,7 @@ func _create_one_way_platform(center: Vector2, platform_size: Vector2) -> void:
 	shape.size = platform_size
 	collision.shape = shape
 	collision.one_way_collision = true
-	collision.one_way_collision_margin = 10.0
+	collision.one_way_collision_margin = 12.0
 	platform.add_child(collision)
 	var visual := Sprite2D.new()
 	visual.texture = PLATFORM_TEXTURE

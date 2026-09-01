@@ -12,7 +12,7 @@ All notable changes are documented in this file.
 - Android pre-release CI reporting for APK bytes, asset source bytes, and decoded texture estimates, plus a 16 KB native page-size ELF alignment check (`tools/check_elf_alignment.py`) over the exported APK.
 - Pinned Godot texture import settings for every production texture (lossless compression, mipmaps disabled) matching the 1:1 mobile rendering of the Option A art.
 - Static verifier coverage for the production asset tree, SpriteFrames/TileSet resources, native HUD/mobile texture controls, and removal of all procedural character/world drawing.
-- Playable Godot 4.7.2 landscape mobile action-RPG vertical slice with Idle/Move/Jump/Attack/Hurt/Death states, a two-hit combo, one-shot jump touch, two skills, Warden and Wraith enemies, a single-phase Rift Warden boss, one spike hazard, and two one-way platforms.
+- Playable Godot 4.7.2 landscape mobile action-RPG vertical slice with Idle/Move/Jump/Attack/Hurt/Death states, a two-hit combo, buffered/coyote-time jump, two skills, Warden and Wraith enemies, a three-stage run (Rift Approach, Broken Keep, Rift Throne), final Rift Warden boss, stage gates, hazards, and reachable one-way platform routes.
 - Isolated multi-touch controls with a fixed joystick, independent attack/jump/skill touch ownership, landscape safe-area positioning, and lifecycle reset on app pause or focus loss.
 - HP, MP, EXP, level, gold, equipment, boss, pause, and FPS HUD with safe-area-aware positioning.
 - Weapon and armor progression with canonical stat recomputation, checksummed local save data, pooled projectiles/damage numbers, and a 50 draw-call runtime budget monitor.
@@ -28,6 +28,8 @@ All notable changes are documented in this file.
 - Default texture filtering switched to linear so the vector art stays crisp without nearest-neighbor artifacts.
 - Mobile gameplay now uses the same local Godot runtime as editor gameplay instead of the former network authority path, removing command round-trip latency and reconnect/pause races from the v1 combat loop.
 - Enemy patrol/aggro/attack logic, boss chase/windup/strike logic, hazard damage, movement, jump physics, rewards, equipment, and persistence now execute locally on Android and iOS exactly as they do in editor runs.
+- Death now rebuilds the current stage and respawns the hero at its checkpoint instead of leaving a dead actor in place; enemy/boss cleanup waits for complete death animations.
+- Enemy and boss attack windows now use horizontal/vertical reach checks plus hitbox sizes/offsets matched to the high-detail painted silhouettes; the boss gains visible windup/strike body motion.
 - Pause and application lifecycle transitions clear active touch ownership before gameplay resumes, preventing held/stale mobile input after interruption.
 - Export presets are explicitly pre-release presets with `0.1.0` package metadata; iOS CI remains intentionally unsigned and validates bundle/version metadata before packaging.
 

@@ -5,13 +5,16 @@ signal attack_requested(combo_step: int)
 signal state_changed(previous: State, current: State)
 signal resources_changed(snapshot: Dictionary)
 signal persistence_requested
+signal died
 
 enum State { IDLE, MOVE, JUMP, ATTACK, HURT, DEATH }
 
 const MOVE_SPEED := 250.0
 const MOVE_ACCELERATION := 2200.0
 const MOVE_DECELERATION := 3000.0
-const JUMP_SPEED := -520.0
+const JUMP_SPEED := -640.0
+const COYOTE_TIME := 0.11
+const JUMP_BUFFER_TIME := 0.13
 const ATTACK_DURATION := 0.22
 const COMBO_GRACE := 0.34
 
@@ -45,6 +48,9 @@ var _sprite: AnimatedSprite2D
 var _attack_anim := &"attack1"
 var _dust_cooldown := 0.0
 var _dust_alternator := false
+var _coyote_time := 0.0
+var _jump_buffer_time := 0.0
+var _camera: Camera2D
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
@@ -83,8 +89,14 @@ func _physics_process(delta: float) -> void:
 	_health.tick(delta)
 	_hitbox.tick(delta)
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 55) % 2 == 0
-	if not is_on_floor():
+	if is_on_floor():
+		_coyote_time = COYOTE_TIME
+	else:
+		_coyote_time = maxf(0.0, _coyote_time - delta)
 		velocity.y += get_gravity().y * delta
+	_jump_buffer_time = maxf(0.0, _jump_buffer_time - delta)
+	if _jump_pressed():
+		_jump_buffer_time = JUMP_BUFFER_TIME
 	if state == State.HURT:
 		_update_hurt(delta)
 		move_and_slide()
@@ -99,7 +111,9 @@ func _physics_process(delta: float) -> void:
 	if absf(move_axis) > 0.05:
 		facing = signf(move_axis)
 	_sprite.flip_h = facing < 0.0
-	if _jump_pressed() and is_on_floor():
+	if _jump_buffer_time > 0.0 and _coyote_time > 0.0:
+		_jump_buffer_time = 0.0
+		_coyote_time = 0.0
 		velocity.y = JUMP_SPEED
 		_set_state(State.JUMP)
 	elif _skill_pressed(&"skill_two"):
@@ -132,8 +146,44 @@ func die() -> void:
 	if _dead:
 		return
 	_dead = true
-	velocity.x = 0.0
+	velocity = Vector2.ZERO
 	_set_state(State.DEATH)
+	died.emit()
+
+func is_dead() -> bool:
+	return _dead
+
+func respawn_at(spawn_position: Vector2) -> void:
+	_dead = false
+	global_position = spawn_position
+	velocity = Vector2.ZERO
+	_coyote_time = 0.0
+	_jump_buffer_time = 0.0
+	_health.set_current(_health.maximum)
+	_mana = _maximum_mana
+	visible = true
+	modulate = Color.WHITE
+	_set_state(State.IDLE)
+	resources_changed.emit(get_resource_snapshot())
+
+func place_at(spawn_position: Vector2) -> void:
+	global_position = spawn_position
+	velocity = Vector2.ZERO
+	if not _dead:
+		_set_state(State.IDLE)
+
+func prepare_for_stage(spawn_position: Vector2) -> void:
+	place_at(spawn_position)
+	var health_recovery := maxi(1, int(round(float(_health.maximum) * 0.18)))
+	var mana_recovery := maxi(1, int(round(float(_maximum_mana) * 0.20)))
+	_health.set_current(mini(_health.maximum, _health.current + health_recovery))
+	_mana = mini(_maximum_mana, _mana + mana_recovery)
+	_set_state(State.IDLE)
+	resources_changed.emit(get_resource_snapshot())
+
+func set_camera_world_width(world_width: float) -> void:
+	if is_instance_valid(_camera):
+		_camera.limit_right = maxi(960, int(ceil(world_width)))
 
 func get_facing() -> float:
 	return facing
@@ -332,15 +382,15 @@ func _add_body_shape() -> void:
 	add_child(collision)
 
 func _add_camera() -> void:
-	var camera := Camera2D.new()
-	camera.position = Vector2(120.0, -48.0)
-	camera.position_smoothing_enabled = true
-	camera.position_smoothing_speed = 7.0
-	camera.limit_left = 0
-	camera.limit_right = 2400
-	camera.limit_top = 0
-	camera.limit_bottom = 540
-	add_child(camera)
+	_camera = Camera2D.new()
+	_camera.position = Vector2(120.0, -48.0)
+	_camera.position_smoothing_enabled = true
+	_camera.position_smoothing_speed = 7.0
+	_camera.limit_left = 0
+	_camera.limit_right = 2400
+	_camera.limit_top = 0
+	_camera.limit_bottom = 540
+	add_child(_camera)
 
 func _add_combat_nodes() -> void:
 	_health = HealthComponent.new()

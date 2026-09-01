@@ -27,9 +27,12 @@ func _init() -> void:
 func _run() -> void:
 	_test_profile_recomputes_stats()
 	_test_player_fsm_and_combo()
+	_test_jump_traversal_contract()
+	_test_death_respawn_contract()
 	_test_multitouch_and_safe_area()
 	_test_input_reset_on_lifecycle_boundary()
 	_test_zone_structure()
+	_test_stage_catalog_and_progression()
 	_test_enemy_and_boss_fsm_smoke()
 	_test_inventory_cycles_canonical_equipment()
 	_test_save_rejects_tampering()
@@ -40,7 +43,7 @@ func _run() -> void:
 	await _test_full_scene_boot_and_pause()
 	await process_frame
 	if _failures == 0:
-		print("PASS: 13 behavior tests")
+		print("PASS: 16 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -76,6 +79,26 @@ func _test_player_fsm_and_combo() -> void:
 	controls.remove_from_group("mobile_controls")
 	hero.queue_free()
 	controls.queue_free()
+
+func _test_jump_traversal_contract() -> void:
+	var hero := Hero.new()
+	root.add_child(hero)
+	var gravity := maxf(1.0, hero.get_gravity().y)
+	var jump_height := (Hero.JUMP_SPEED * Hero.JUMP_SPEED) / (2.0 * gravity)
+	_expect(jump_height >= 180.0, "hero jump clears the tallest intended stage step")
+	_expect(Hero.COYOTE_TIME >= 0.10 and Hero.JUMP_BUFFER_TIME >= 0.10, "jump includes mobile-friendly coyote and buffer windows")
+	hero.queue_free()
+
+func _test_death_respawn_contract() -> void:
+	var hero := Hero.new()
+	root.add_child(hero)
+	hero.die()
+	_expect(hero.is_dead() and hero.state == Hero.State.DEATH, "hero death enters terminal animation state")
+	hero.respawn_at(Vector2(180.0, 406.0))
+	var snapshot := hero.get_resource_snapshot()
+	_expect(not hero.is_dead() and hero.state == Hero.State.IDLE, "respawn returns hero to playable idle state")
+	_expect(int(snapshot.health) == int(snapshot.max_health) and int(snapshot.mana) == int(snapshot.max_mana), "respawn restores health and mana")
+	hero.queue_free()
 
 func _test_multitouch_and_safe_area() -> void:
 	var controls := MobileControls.new()
@@ -126,7 +149,9 @@ func _test_input_reset_on_lifecycle_boundary() -> void:
 
 func _test_zone_structure() -> void:
 	var zone := ZoneBuilder.new()
-	zone.build()
+	var config := StageCatalog.get_stage(0)
+	zone.configure(0, float(config.width))
+	zone.build(config)
 	root.add_child(zone)
 	var tile_layers := 0
 	var hazards := 0
@@ -141,9 +166,20 @@ func _test_zone_structure() -> void:
 				if shape_node is CollisionShape2D and shape_node.one_way_collision:
 					one_way_platforms += 1
 	_expect(tile_layers == 3, "zone builds exactly three TileMapLayer nodes")
-	_expect(hazards == 1, "zone builds the v1 hazard")
-	_expect(one_way_platforms == 2, "zone builds both one-way platforms")
+	_expect(hazards == 2, "stage one builds both authored hazards")
+	_expect(one_way_platforms == 3, "stage one builds three reachable one-way platforms")
 	zone.queue_free()
+
+func _test_stage_catalog_and_progression() -> void:
+	_expect(StageCatalog.count() == 3, "v1 run contains three authored stages")
+	for index in range(StageCatalog.count()):
+		var config := StageCatalog.get_stage(index)
+		_expect(float(config.width) >= 2000.0, "stage %d has full traversal width" % (index + 1))
+		_expect(config.platforms is Array and not config.platforms.is_empty(), "stage %d has authored platform traversal" % (index + 1))
+		for entry in config.platforms:
+			_expect(entry is Array and entry.size() == 2, "stage platform contract is center + size")
+	_expect(not bool(StageCatalog.get_stage(0).boss) and not bool(StageCatalog.get_stage(1).boss), "boss is reserved for final stage")
+	_expect(bool(StageCatalog.get_stage(2).boss), "final stage contains Rift Warden")
 
 func _test_enemy_and_boss_fsm_smoke() -> void:
 	var hero := Hero.new()
@@ -157,6 +193,8 @@ func _test_enemy_and_boss_fsm_smoke() -> void:
 	_expect(enemy.state == EnemyController.State.AGGRO, "warden patrol enters aggro near hero")
 	enemy._update_aggro(0.0)
 	_expect(enemy.state == EnemyController.State.ATTACK, "warden aggro enters attack in range")
+	_expect(enemy._attack_range() >= 80.0, "warden attack range matches the widened visual strike")
+	_expect(enemy._animation_duration(&"death") >= 0.6, "enemy death animation has time to complete")
 	var boss := BossController.new()
 	boss.configure(hero)
 	boss.position = Vector2(300.0, 400.0)
@@ -166,6 +204,8 @@ func _test_enemy_and_boss_fsm_smoke() -> void:
 	_expect(boss.state == BossController.State.WINDUP, "boss chase enters windup in range")
 	boss._start_strike()
 	_expect(boss.state == BossController.State.STRIKE, "boss windup advances to strike")
+	_expect(CombatAuthority.MAX_MELEE_DISTANCE >= 114.0, "combat authority does not clip boss visual reach")
+	_expect(boss._animation_duration(&"death") >= 1.0, "boss death animation completes before cleanup")
 	boss.queue_free()
 	enemy.queue_free()
 	hero.queue_free()
@@ -275,10 +315,14 @@ func _test_full_scene_boot_and_pause() -> void:
 	root.add_child(game)
 	await process_frame
 	_expect(is_instance_valid(game._hero), "game scene creates hero")
-	_expect(is_instance_valid(game._boss), "game scene creates boss")
+	_expect(not is_instance_valid(game._boss), "stage one starts without the final boss")
+	_expect(game._stage_index == 0 and game._stage_remaining == 3, "stage one spawns its authored encounter")
 	_expect(is_instance_valid(game._hud), "game scene creates HUD")
 	_expect(is_instance_valid(game._controls), "game scene creates mobile controls")
 	_expect(game._controls.process_mode == Node.PROCESS_MODE_ALWAYS, "pause control remains responsive while paused")
+	game._load_stage(2, false)
+	_expect(game._stage_index == 2 and is_instance_valid(game._boss), "final stage loads Rift Warden")
+	_expect(game._hud._stage_label.text.begins_with("3/3"), "HUD reflects current stage progression")
 	var hud_bars := 0
 	for child in game._hud.get_children():
 		if child is TextureProgressBar:

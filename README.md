@@ -1,6 +1,6 @@
 # Shadow Rift
 
-Godot 4.7.2 landscape mobile action-RPG vertical slice for Android and iOS. v1 contains one zone, a two-hit player combo, one-shot jump touch, two skills, two enemy types, one single-phase boss, equipment, pooled effects, and a stylized 2D hand-drawn/vector dark-fantasy production art set (OPTION A) rendered through native Godot sprites, TileSet, parallax, and texture controls.
+Godot 4.7.2 landscape mobile action-RPG vertical slice for Android and iOS. v1 contains a three-stage run (Rift Approach → Broken Keep → Rift Throne), a two-hit player combo, buffered/coyote-time jump, two skills, Warden/Wraith encounters, a final Rift Warden boss, death/respawn checkpoints, equipment, pooled effects, and a stylized 2D hand-drawn/vector dark-fantasy production art set (OPTION A) rendered through native Godot sprites, TileSet, parallax, and texture controls.
 
 The pre-release mobile builds use the same local Godot gameplay runtime as the editor build. There is no gameplay server, bearer token, reconnect state machine, or network dependency in v1; movement/combat response is therefore limited by local frame/physics timing instead of HTTP round trips.
 
@@ -22,7 +22,7 @@ godot --headless --path . --editor --quit
 godot --headless --path . --script res://tests/test_runner.gd
 ```
 
-GitHub `Verify` pins Godot 4.7.2, imports/parses the project, runs the source contract, and runs 13 deterministic GDScript behavior tests covering player/input, safe-area mapping, lifecycle input reset, world structure, enemy/boss FSMs, inventory, save validation, local canonical combat/hazard damage, pooling, performance contracts, production art resources, and pause/resume.
+GitHub `Verify` pins Godot 4.7.2, imports/parses the project, runs the source contract, and runs 16 deterministic GDScript behavior tests covering player/input, jump reachability, death/respawn, three-stage progression, safe-area mapping, lifecycle input reset, world structure, enemy/boss FSM/range/death timing, inventory, save validation, local canonical combat/hazard damage, pooling, performance contracts, production art resources, and pause/resume.
 
 Regenerate production art (Pillow + NumPy) from the Godot-ignored masters in `art_source/option_a_masters` plus the local environment/UI/VFX generators:
 

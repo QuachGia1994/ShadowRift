@@ -11,6 +11,7 @@ REQUIRED = [
     "scripts/input/mobile_controls.gd",
     "scripts/combat/combat_authority.gd",
     "scripts/world/game_world.gd",
+    "scripts/world/stage_catalog.gd",
     "scripts/world/zone_builder.gd",
     "scripts/world/hazard.gd",
     "scripts/enemies/enemy_controller.gd",
@@ -157,6 +158,7 @@ def main() -> int:
 
     player = (ROOT / "scripts/player/player.gd").read_text(encoding="utf-8")
     require("AnimatedSprite2D" in player and "hero_frames.tres" in player, "hero must render through SpriteFrames resource")
+    require("JUMP_SPEED := -640.0" in player and "COYOTE_TIME" in player and "JUMP_BUFFER_TIME" in player, "mobile traversal jump tuning missing")
     require("slash_1.png" in player and "slash_2.png" in player and "skill_one_slash.png" in player, "hero slash VFX assets missing")
     require("dust.png" in player, "hero run dust asset missing")
     enemies = (ROOT / "scripts/enemies/enemy_controller.gd").read_text(encoding="utf-8")
@@ -207,6 +209,8 @@ def main() -> int:
 
     world = (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8")
     require("_toggle_user_pause" in world and "get_tree().paused = _paused_by_user" in world, "world pause/resume contract missing")
+    require("StageCatalog.count()" in world and "_load_stage" in world and "_on_stage_gate_body_entered" in world, "three-stage progression flow missing")
+    require("_on_hero_died" in world and "respawn_at" in world, "death respawn flow missing")
     require("_load_progress()" in world and "_save_progress()" in world, "local mobile persistence flow missing")
     require("reset_inputs()" in world and "NOTIFICATION_APPLICATION_FOCUS_OUT" in world, "world lifecycle reset missing")
     require("ServerAuthorityClient" not in world, "network authority remained in game world")
@@ -220,7 +224,8 @@ def main() -> int:
     require("skill_two_projectile.png" in projectile and "func _draw()" not in projectile, "projectile must render through the rift bolt texture")
 
     tests = (ROOT / "tests/test_runner.gd").read_text(encoding="utf-8")
-    require("PASS: 13 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("PASS: 16 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("_test_jump_traversal_contract" in tests and "_test_death_respawn_contract" in tests and "_test_stage_catalog_and_progression" in tests, "gameplay completion regression coverage missing")
     require("_test_multitouch_and_safe_area" in tests and "_test_input_reset_on_lifecycle_boundary" in tests, "mobile edge-case coverage missing")
     require("hazard damage resolves through local authority" in tests, "mobile hazard regression coverage missing")
     require("_test_production_resources_load" in tests, "production asset coverage missing")

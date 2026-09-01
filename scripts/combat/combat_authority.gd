@@ -3,7 +3,7 @@ class_name CombatAuthority
 
 signal damage_resolved(position: Vector2, amount: int)
 
-const MAX_MELEE_DISTANCE := 96.0
+const MAX_MELEE_DISTANCE := 144.0
 const DAMAGE_CAP := 9999
 const ATTACK_MULTIPLIERS := {&"basic_one": 1.0, &"basic_two": 1.28, &"skill_one": 1.65, &"skill_two": 2.1, &"enemy_basic": 1.0, &"boss_basic": 1.35}
 

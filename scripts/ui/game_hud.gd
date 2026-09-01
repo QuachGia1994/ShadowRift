@@ -49,18 +49,51 @@ var _fps_label: Label
 var _pause_overlay: Control
 var _pause_title: Label
 var _pause_hint: Label
+var _banner_panel: NinePatchRect
+var _banner_title: Label
+var _banner_hint: Label
+var _banner_tween: Tween
 var _last_safe := Rect2()
 var _text_cache := {}
 
-func configure(hero: Hero, boss: BossController) -> void:
+func configure(hero: Hero, boss: BossController = null) -> void:
 	_hero = hero
-	_boss = boss
 	_hero.resources_changed.connect(_on_hero_resources_changed)
-	_boss.health_changed.connect(_on_boss_health_changed)
 	_hero_snapshot = _hero.get_resource_snapshot()
-	var boss_health := _boss.get_health_snapshot()
-	_boss_current = boss_health.x
-	_boss_maximum = boss_health.y
+	bind_boss(boss)
+
+func bind_boss(boss: BossController) -> void:
+	if is_instance_valid(_boss) and _boss.health_changed.is_connected(_on_boss_health_changed):
+		_boss.health_changed.disconnect(_on_boss_health_changed)
+	_boss = boss
+	_boss_current = 0
+	_boss_maximum = 1
+	if is_instance_valid(_boss):
+		_boss.health_changed.connect(_on_boss_health_changed)
+		var boss_health := _boss.get_health_snapshot()
+		_boss_current = boss_health.x
+		_boss_maximum = boss_health.y
+
+func set_stage(stage_number: int, total_stages: int, stage_name: String) -> void:
+	if is_instance_valid(_stage_label):
+		_stage_label.text = "%d/%d · %s" % [stage_number, total_stages, stage_name]
+
+func show_banner(title: String, hint: String, duration: float = 0.9) -> void:
+	if not is_instance_valid(_banner_panel):
+		return
+	if is_instance_valid(_banner_tween):
+		_banner_tween.kill()
+	_banner_title.text = title
+	_banner_hint.text = hint
+	_banner_panel.visible = true
+	_banner_panel.modulate.a = 1.0
+	_banner_tween = create_tween()
+	_banner_tween.tween_interval(maxf(0.15, duration))
+	_banner_tween.tween_property(_banner_panel, "modulate:a", 0.0, 0.2)
+	_banner_tween.tween_callback(func() -> void:
+		_banner_panel.visible = false
+		_banner_panel.modulate.a = 1.0
+	)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -144,10 +177,23 @@ func _build_controls() -> void:
 	_armor_slot.add_child(_armor_slot_label)
 	_armor_name_label = _make_label("", 10, Color(0.88, 0.90, 0.94))
 	_armor_slot.add_child(_armor_name_label)
-	_stage_label = _make_label("1/1", 15, MUTED)
+	_stage_label = _make_label("1/3 · RIFT APPROACH", 13, MUTED)
 	_boss_name_label = _make_label("RIFT WARDEN", 10, Color(0.88, 0.67, 0.70))
 	_boss_bar = _make_bar(BOSS_FILL, 17)
 	_fps_label = _make_label("", 10, Color(0.45, 0.86, 0.70))
+	_banner_panel = NinePatchRect.new()
+	_banner_panel.texture = HUD_FRAME
+	_banner_panel.patch_margin_left = 12
+	_banner_panel.patch_margin_right = 12
+	_banner_panel.patch_margin_top = 12
+	_banner_panel.patch_margin_bottom = 12
+	_banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner_panel.visible = false
+	add_child(_banner_panel)
+	_banner_title = _make_label("", 18, Color.WHITE)
+	_banner_hint = _make_label("", 10, MUTED)
+	_banner_panel.add_child(_banner_title)
+	_banner_panel.add_child(_banner_hint)
 	_pause_overlay = Control.new()
 	_pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_pause_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -255,12 +301,16 @@ func _layout(safe: Rect2) -> void:
 	_armor_slot_label.position = armor_rect.position + Vector2(32.0, 1.0)
 	_armor_name_label.position = armor_rect.position + Vector2(32.0, 12.0)
 	var center_x := safe.position.x + safe.size.x * 0.5
-	_stage_label.position = Vector2(center_x - 16.0, safe.position.y - 6.0)
+	_stage_label.position = Vector2(center_x - 92.0, safe.position.y - 6.0)
 	var boss_width := minf(430.0, safe.size.x * 0.38)
 	_boss_bar.position = Vector2(center_x - boss_width * 0.5, safe.position.y + 28.0)
 	_boss_bar.size = Vector2(boss_width, 17.0)
 	_boss_name_label.position = Vector2(center_x - boss_width * 0.5, safe.position.y + 2.0)
 	_fps_label.position = Vector2(safe.end.x - 58.0, safe.position.y + 2.0)
+	_banner_panel.position = Vector2(center_x - 150.0, safe.position.y + 62.0)
+	_banner_panel.size = Vector2(300.0, 64.0)
+	_banner_title.position = Vector2(18.0, 9.0)
+	_banner_hint.position = Vector2(18.0, 34.0)
 	var pause_panel: NinePatchRect = _pause_overlay.get_meta("panel")
 	pause_panel.position = Vector2(size.x * 0.5 - 155.0, size.y * 0.5 - 61.0)
 	pause_panel.size = Vector2(310.0, 122.0)
