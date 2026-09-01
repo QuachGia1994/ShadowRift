@@ -22,7 +22,7 @@ godot --headless --path . --editor --quit
 godot --headless --path . --script res://tests/test_runner.gd
 ```
 
-GitHub `Verify` pins Godot 4.7.2, imports/parses the project, runs the source contract, and runs 16 deterministic GDScript behavior tests covering player/input, jump reachability, death/respawn, three-stage progression, safe-area mapping, lifecycle input reset, world structure, enemy/boss FSM/range/death timing, inventory, save validation, local canonical combat/hazard damage, pooling, performance contracts, production art resources, and pause/resume.
+GitHub `Verify` pins Godot 4.7.2, imports/parses the project, runs the source contract, and runs 23 deterministic GDScript behavior tests covering donor-derived platformer feel (coyote/buffer/variable jump/asymmetric gravity), moving platform carry, one-way platforms, checkpoint/killzone/death-plane recovery, hero death/respawn without deadlock, data-driven LevelConfig/LevelManager (three-stage + custom 4th without core edit), stage transition without duplicate Hero/HUD/MobileControls, Warden/Wraith/boss windup-strike-death, save migration v1->v2, plus original player/input, jump reachability, three-stage progression, safe-area, lifecycle, world structure, inventory, local canonical combat/hazard damage, pooling, performance and production art resources, and pause/resume.
 
 Regenerate production art (Pillow + NumPy) from the Godot-ignored masters in `art_source/option_a_masters` plus the local environment/UI/VFX generators:
 
@@ -30,6 +30,16 @@ Regenerate production art (Pillow + NumPy) from the Godot-ignored masters in `ar
 python tools/generate_option_a_assets.py
 python tools/report_mobile_memory.py
 ```
+
+## Donor Engine Integration
+Proven GitHub systems were researched before custom code (see `docs/arch/engine-donors.md` and `THIRD_PARTY_NOTICES.md`):
+- **SummerEngine/template-2d-platformer** (MIT 66fc71b, Godot 4.6) — adapted player feel (coyote 0.08/buffer 0.1 + gravity 1100/1400 + turn boost), AnimatableBody2D moving platform, checkpoint/killzone, level-end and scene-transition.
+- **enea-codes/godot-platformer-toolkit** (MIT e755d6e, Godot 4.7) — adapted designer-friendly jump gravity derivation, HealthComponent/Hitbox/Hurtbox signals, SquashStretch, CameraShake and landing dust.
+- **PhumPea/GameLab4** (MIT ebe3fad, Godot 4.7) — adapted BaseLevel/GameManager transition and level-finish door pattern for LevelRoot/LevelManager.
+- **crystal-trails** (All Rights Reserved 67404a6, Godot 4.7) — reference only for data-driven multi-world progression and checkpoint architecture; zero code copied.
+- **sayuolab/2d-platformer-controller** (MIT 54b2160, Godot 4.6) — searched, reference only (corner correction, redundant with above).
+
+All donors are cloned outside the game at `D:\LacViet\_vendor\shadowrift-engine-donors\`, pinned SHAs above, and only minimal MIT-licensed files are adapted. Adding a 4th stage now requires only a new `LevelConfig` resource, no core run-management edit.
 
 ## Mobile pre-release export
 

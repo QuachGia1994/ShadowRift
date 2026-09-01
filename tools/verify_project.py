@@ -14,6 +14,15 @@ REQUIRED = [
     "scripts/world/stage_catalog.gd",
     "scripts/world/zone_builder.gd",
     "scripts/world/hazard.gd",
+    "scripts/level/level_config.gd",
+    "scripts/level/level_manager.gd",
+    "scripts/world/level_root.gd",
+    "scripts/platform/moving_platform.gd",
+    "scripts/world/checkpoint.gd",
+    "scripts/world/killzone.gd",
+    "scripts/world/level_exit.gd",
+    "scripts/platform/squash_stretch.gd",
+    "scripts/platform/camera_effects.gd",
     "scripts/enemies/enemy_controller.gd",
     "scripts/enemies/boss_controller.gd",
     "scripts/progression/player_profile.gd",
@@ -22,6 +31,8 @@ REQUIRED = [
     "scripts/ui/game_hud.gd",
     "tests/test_runner.gd",
     "tools/build_unsigned_ios.sh",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/arch/engine-donors.md",
 ]
 
 PRODUCTION_ASSETS = [
@@ -120,6 +131,11 @@ def main() -> int:
     }
     for relative, signature in frame_contracts.items():
         require(signature in (ROOT / relative).read_text(encoding="utf-8"), f"HD SpriteFrames contract missing in {relative}")
+    require((ROOT / "THIRD_PARTY_NOTICES.md").is_file(), "donor provenance missing")
+    require((ROOT / "docs/arch/engine-donors.md").is_file(), "donor research matrix missing")
+    require(not (ROOT / "_vendor").exists() and not (ROOT / "shadowrift-engine-donors").exists(), "donor repo vendored into game")
+    require("template-2d-platformer" in (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8") and "godot-platformer-toolkit" in (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8"), "donor attribution incomplete")
+    require("crystal-trails" in (ROOT / "docs/arch/engine-donors.md").read_text(encoding="utf-8"), "reference donor missing")
     for png in sorted((ROOT / "assets").rglob("*.png")):
         import_file = png.with_suffix(".png.import")
         require(import_file.is_file(), f"missing pinned import settings for {png.relative_to(ROOT).as_posix()}")
@@ -153,12 +169,17 @@ def main() -> int:
     require("textures/canvas_textures/default_texture_filter=1" in project_settings, "linear texture filtering missing for vector art")
     require("TileMapLayer" in runtime_text, "TileMapLayer zone missing")
     require("checksum_for" in runtime_text and "save_checksum_mismatch" in runtime_text, "save integrity checks missing")
+    require("SCHEMA_VERSION := 2" in (ROOT / "scripts/persistence/save_repository.gd").read_text(encoding="utf-8"), "save schema v2 migration missing")
+    require("_migrate_v1_to_v2" in (ROOT / "scripts/persistence/save_repository.gd").read_text(encoding="utf-8"), "save migration missing")
     require("get_canonical_attack_power" in runtime_text and "_canonical_attack" in runtime_text, "canonical local combat boundary missing")
     require("DRAW_CALL_BUDGET := 50" in runtime_text, "draw-call budget missing")
 
     player = (ROOT / "scripts/player/player.gd").read_text(encoding="utf-8")
     require("AnimatedSprite2D" in player and "hero_frames.tres" in player, "hero must render through SpriteFrames resource")
-    require("JUMP_SPEED := -640.0" in player and "COYOTE_TIME" in player and "JUMP_BUFFER_TIME" in player, "mobile traversal jump tuning missing")
+    require("COYOTE_TIME" in player and "JUMP_BUFFER_TIME" in player, "mobile traversal jump tuning missing")
+    require("GRAVITY_RISE" in player and "GRAVITY_FALL" in player and "JUMP_CUT_FACTOR" in player and "TURN_BOOST" in player, "donor player game-feel constants missing")
+    require("MovingPlatform" in (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8") or "LevelManager" in (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8"), "data-driven level manager missing from game world")
+    require("LevelConfig" in (ROOT / "scripts/level/level_config.gd").read_text(encoding="utf-8") and "LevelManager" in (ROOT / "scripts/level/level_manager.gd").read_text(encoding="utf-8"), "level config/manager missing")
     require("slash_1.png" in player and "slash_2.png" in player and "skill_one_slash.png" in player, "hero slash VFX assets missing")
     require("dust.png" in player, "hero run dust asset missing")
     enemies = (ROOT / "scripts/enemies/enemy_controller.gd").read_text(encoding="utf-8")
@@ -209,7 +230,7 @@ def main() -> int:
 
     world = (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8")
     require("_toggle_user_pause" in world and "get_tree().paused = _paused_by_user" in world, "world pause/resume contract missing")
-    require("StageCatalog.count()" in world and "_load_stage" in world and "_on_stage_gate_body_entered" in world, "three-stage progression flow missing")
+    require("StageCatalog.count()" in world and "_load_stage" in world, "three-stage progression flow missing")
     require("_on_hero_died" in world and "respawn_at" in world, "death respawn flow missing")
     require("_load_progress()" in world and "_save_progress()" in world, "local mobile persistence flow missing")
     require("reset_inputs()" in world and "NOTIFICATION_APPLICATION_FOCUS_OUT" in world, "world lifecycle reset missing")
@@ -224,7 +245,12 @@ def main() -> int:
     require("skill_two_projectile.png" in projectile and "func _draw()" not in projectile, "projectile must render through the rift bolt texture")
 
     tests = (ROOT / "tests/test_runner.gd").read_text(encoding="utf-8")
-    require("PASS: 16 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("PASS: 23 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("_test_donor_jump_feel" in tests and "_test_moving_platform_carry" in tests, "donor game-feel coverage missing")
+    require("_test_checkpoint_activation" in tests and "_test_killzone_recovery" in tests, "checkpoint/killzone coverage missing")
+    require("_test_stage_transition_no_duplicates" in tests, "stage transition leak coverage missing")
+    require("_test_save_migration" in tests, "save migration coverage missing")
+    require("_test_level_config_data_driven" in tests, "data-driven level coverage missing")
     require("_test_jump_traversal_contract" in tests and "_test_death_respawn_contract" in tests and "_test_stage_catalog_and_progression" in tests, "gameplay completion regression coverage missing")
     require("_test_multitouch_and_safe_area" in tests and "_test_input_reset_on_lifecycle_boundary" in tests, "mobile edge-case coverage missing")
     require("hazard damage resolves through local authority" in tests, "mobile hazard regression coverage missing")

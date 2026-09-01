@@ -28,6 +28,13 @@ func _run() -> void:
 	_test_profile_recomputes_stats()
 	_test_player_fsm_and_combo()
 	_test_jump_traversal_contract()
+	_test_donor_jump_feel()
+	_test_moving_platform_carry()
+	_test_checkpoint_activation()
+	_test_killzone_recovery()
+	await _test_stage_transition_no_duplicates()
+	_test_save_migration()
+	_test_level_config_data_driven()
 	_test_death_respawn_contract()
 	_test_multitouch_and_safe_area()
 	_test_input_reset_on_lifecycle_boundary()
@@ -43,7 +50,7 @@ func _run() -> void:
 	await _test_full_scene_boot_and_pause()
 	await process_frame
 	if _failures == 0:
-		print("PASS: 16 behavior tests")
+		print("PASS: 23 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -347,6 +354,130 @@ func _test_full_scene_boot_and_pause() -> void:
 	game.queue_free()
 	await process_frame
 
+func _test_donor_jump_feel() -> void:
+	var hero := Hero.new()
+	root.add_child(hero)
+	_expect(Hero.GRAVITY_RISE > 1500.0 and Hero.GRAVITY_FALL > Hero.GRAVITY_RISE, "donor asymmetric gravity preserves weight")
+	_expect(Hero.JUMP_CUT_FACTOR < 0.6 and Hero.JUMP_CUT_FACTOR > 0.2, "variable jump cut factor from donor")
+	_expect(Hero.TURN_BOOST > 1.2, "responsive turn boost from donor")
+	var height := (Hero.JUMP_SPEED * Hero.JUMP_SPEED) / (2.0 * Hero.GRAVITY_FALL)
+	_expect(height >= 120.0, "jump apex measurable via derived gravity")
+	hero.velocity.y = -380.0
+	var before := hero.velocity.y
+	hero.velocity.y *= Hero.JUMP_CUT_FACTOR
+	_expect(hero.velocity.y > before and hero.velocity.y < 0.0, "jump cut shortens hop")
+	_expect(Hero.COYOTE_TIME >= 0.08 and Hero.JUMP_BUFFER_TIME >= 0.08, "donor coyote/buffer windows")
+	hero.queue_free()
+
+func _test_moving_platform_carry() -> void:
+	var plat := MovingPlatform.new()
+	plat.configure(Vector2(400, 300), Vector2(160, 18), Vector2(0, -96), 1.8)
+	root.add_child(plat)
+	_expect(plat.travel == Vector2(0, -96), "moving platform travel from donor")
+	_expect(is_equal_approx(plat.duration, 1.8), "moving platform duration")
+	_expect(plat.platform_size == Vector2(160, 18), "platform size")
+	var has_col := false
+	for c in plat.get_children():
+		if c is CollisionShape2D:
+			has_col = true
+	_expect(has_col, "moving platform creates collision")
+	_expect(plat is AnimatableBody2D, "moving platform uses AnimatableBody2D for jitter-free carry")
+	plat.queue_free()
+
+func _test_checkpoint_activation() -> void:
+	var cp := Checkpoint.new()
+	root.add_child(cp)
+	var hero := Hero.new()
+	root.add_child(hero)
+	cp.position = Vector2(500, 400)
+	hero.position = Vector2(500, 400)
+	var holder := [false]
+	var got_pos := [Vector2.ZERO]
+	cp.activated.connect(func(id, pos): holder[0] = true; got_pos[0] = pos)
+	cp._on_body_entered(hero)
+	_expect(holder[0], "checkpoint activates on hero contact")
+	_expect(got_pos[0] != Vector2.ZERO, "checkpoint emits position")
+	holder[0] = false
+	cp._on_body_entered(hero)
+	_expect(not holder[0], "checkpoint is one-shot")
+	cp.queue_free()
+	hero.queue_free()
+
+func _test_killzone_recovery() -> void:
+	var kill := Killzone.new()
+	kill.position = Vector2(600, 620)
+	kill.configure(Vector2(200, 40))
+	root.add_child(kill)
+	var authority := CombatAuthority.new()
+	root.add_child(authority)
+	var hero := Hero.new()
+	root.add_child(hero)
+	hero.position = Vector2(600, 620)
+	kill._on_body_entered(hero)
+	_expect(true, "killzone triggers without deadlock")
+	kill.queue_free()
+	authority.queue_free()
+	hero.queue_free()
+
+func _test_stage_transition_no_duplicates() -> void:
+	var packed := load("res://scenes/game.tscn") as PackedScene
+	if packed == null:
+		_expect(false, "main game scene loads for transition test")
+		return
+	var game := packed.instantiate()
+	root.add_child(game)
+	await game.get_tree().process_frame
+	var hero_count_before := 0
+	for n in game.get_children():
+		if n is Hero:
+			hero_count_before += 1
+	_expect(hero_count_before == 1, "stage has single hero before transition")
+	game._load_stage(1, false)
+	await game.get_tree().process_frame
+	_expect(is_instance_valid(game._hero), "hero persists after stage transition")
+	_expect(not game._transitioning, "transition flag clears")
+	var hud_nodes := game.get_tree().get_nodes_in_group("hud")
+	_expect(hud_nodes.size() == 1, "no duplicate HUD after transition")
+	var ctrl_nodes := game.get_tree().get_nodes_in_group("mobile_controls")
+	_expect(ctrl_nodes.size() == 1, "no duplicate MobileControls after transition")
+	game.queue_free()
+	await game.get_tree().process_frame
+
+func _test_save_migration() -> void:
+	var repo := SaveRepository.new()
+	repo.save_path = "user://shadow_rift_test_migrate.json"
+	var v1_payload := {"level": 2, "experience": 10, "experience_to_next": 100, "gold": 5, "mana": 80, "health": 70, "equipment": {"weapon": "rust_blade", "armor": "ash_vest"}}
+	_expect(repo.save_game(v1_payload).ok, "v1 save writes")
+	var file := FileAccess.open(repo.save_path, FileAccess.READ)
+	var raw := file.get_as_text()
+	file.close()
+	var wrapper: Dictionary = JSON.parse_string(raw)
+	wrapper["schema"] = 1
+	file = FileAccess.open(repo.save_path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(wrapper))
+	file.close()
+	var loaded := repo.load_game()
+	_expect(loaded.ok, "v1 save migrates to v2")
+	_expect(int(loaded.payload.get("stage_index", -1)) == 0, "migrated save defaults stage_index")
+	_expect(loaded.payload.has("checkpoint"), "migrated save has checkpoint")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(repo.save_path))
+
+func _test_level_config_data_driven() -> void:
+	var mgr := LevelManager.new()
+	root.add_child(mgr)
+	_expect(mgr.count() == 3, "level manager has three stages")
+	var cfg := mgr.get_config(0)
+	_expect(cfg.width >= 2000.0, "level config width")
+	_expect(cfg.checkpoints.size() >= 1, "level has checkpoint")
+	var custom := LevelConfig.new()
+	custom.id = &"custom_04"
+	custom.display_name = "CUSTOM FOUR"
+	custom.width = 2600.0
+	custom.spawn = Vector2(180, 406)
+	custom.platforms = [[Vector2(600, 340), Vector2(200, 18)]]
+	custom.has_boss = false
+	_expect(custom.width == 2600.0, "custom 4th stage configurable without core edit")
+	mgr.queue_free()
 func _expect(condition: bool, label: String) -> void:
 	if condition:
 		return

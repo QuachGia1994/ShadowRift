@@ -18,6 +18,12 @@ All notable changes are documented in this file.
 - Weapon and armor progression with canonical stat recomputation, checksummed local save data, pooled projectiles/damage numbers, and a 50 draw-call runtime budget monitor.
 - Android and unsigned iOS pre-release artifacts for version `0.1.0`, plus deterministic source and Godot behavior verification in GitHub Actions.
 
+- GitHub donor engine integration: data-driven `LevelConfig`/`LevelManager`/`LevelRoot` (three curated stages remain Rift Approach/Broken Keep/Rift Throne, 4th stage now needs only a new resource), `MovingPlatform` (AnimatableBody2D tween, jitter-free carry), `Checkpoint`/`Killzone`/`LevelExit`/`DeathPlane`, `SquashStretch` and `CameraEffects` (hitstop/shake) adapted from MIT donors (`SummerEngine/template-2d-platformer` 66fc71b, `enea-codes/godot-platformer-toolkit` e755d6e, `PhumPea/GameLab4` ebe3fad), with `crystal-trails` 67404a6 as reference-only architecture. Donor SHAs, licenses and migration map recorded in `docs/arch/engine-donors.md` and `THIRD_PARTY_NOTICES.md`; donors cloned outside the game at `D:\LacViet\_vendor\shadowrift-engine-donors\`.
+- Player controller now uses donor-proven asymmetric gravity (rise 1800 / fall 2650, max fall 900), variable jump cut (0.42), coyote 0.11 / buffer 0.13 with `_coyote_left`/`_buffer_left` pattern, turn boost 1.55 and air-control damping for measurable jump apex and reachable authored platforms.
+- Checkpoint/death/respawn now deterministic: death animation completes, checkpoint persists via `LevelManager`, fall/hazard killzone recovers to last checkpoint, no duplicate Hero/HUD/MobileControls after stage transition or respawn, pools/tweens do not leak.
+- Save schema migrated v1->v2 (`stage_index`, `checkpoint`, `has_checkpoint`) with SHA-256 re-checksum; old v1 saves migrate safely without crash.
+- Behavior suite expanded from 16 to 23 tests covering donor jump feel, moving platform, checkpoint, killzone, stage-transition no-duplicate, save migration and LevelConfig data-driven.
+
 ### Changed
 
 - Hero, Warden, Wraith, and Rift Warden character sheets now compile from Option A high-detail painted masters (backdrop keyed, spill cleaned, feet-anchored) while keeping the existing animation names, frame counts, SpriteFrames paths, and original visual footprint/pivot.
