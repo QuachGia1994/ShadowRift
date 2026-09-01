@@ -24,11 +24,6 @@ window/handheld/orientation=0
 
 2d/default_gravity=1400.0
 
-[shadow_rift]
-
-server/base_url="https://shadowrift.oakgatekeeper.uk"
-server/fallback_url="https://shadowrift-authority.kim-phong619.workers.dev"
-
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true

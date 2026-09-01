@@ -46,15 +46,23 @@ jobs:
             printf 'export/android/android_sdk_path = "%s"\n' "$android_sdk"
             printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME"
           } > "$HOME/.config/godot/editor_settings-4.tres"
-      - name: Import and export Android debug APK
+      - name: Import and export Android pre-release APK
         run: |
           godot --headless --path . --import
           mkdir -p exports/android
-          godot --headless --path . --export-debug "Android Debug" exports/android/ShadowRift-debug.apk
+          godot --headless --path . --export-debug "Android PreRelease" exports/android/ShadowRift-prerelease.apk
+      - name: Verify Android package metadata
+        run: |
+          metadata="$("$ANDROID_SDK_ROOT/build-tools/35.0.1/aapt" dump badging exports/android/ShadowRift-prerelease.apk | head -1)"
+          expected_package="$(python3 -c 'import pathlib,re; text=pathlib.Path("export_presets.cfg").read_text(); match=re.search(r"^package/unique_name=\"([^\"]+)\"$", text, re.M); assert match; print(match.group(1))')"
+          expected_version="$(python3 -c 'import pathlib,re; text=pathlib.Path("export_presets.cfg").read_text(); match=re.search(r"^version/name=\"([^\"]+)\"$", text, re.M); assert match; print(match.group(1))')"
+          echo "$metadata"
+          grep -F "name='$expected_package'" <<<"$metadata"
+          grep -F "versionName='$expected_version'" <<<"$metadata"
       - uses: actions/upload-artifact@v7
         with:
-          name: ShadowRift-android-debug
-          path: exports/android/ShadowRift-debug.apk
+          name: ShadowRift-android-prerelease
+          path: exports/android/ShadowRift-prerelease.apk
           if-no-files-found: error
 
   ios:
@@ -69,11 +77,11 @@ jobs:
           version: 4.7.2
           use-dotnet: false
           include-templates: true
-      - name: Build unsigned iOS application
+      - name: Build unsigned iOS pre-release application
         run: ./tools/build_unsigned_ios.sh
       - uses: actions/upload-artifact@v7
         with:
-          name: ShadowRift-ios-unsigned
+          name: ShadowRift-ios-prerelease-unsigned
           path: |
             exports/ios/ShadowRift-unsigned.ipa
             exports/ios/ShadowRift-xcode.zip

@@ -15,16 +15,9 @@ class TestActor:
 	func get_defense() -> int:
 		return defense
 
-	func receive_authoritative_hit(amount: int, _knockback: Vector2) -> bool:
+	func receive_canonical_hit(amount: int, _knockback: Vector2) -> bool:
 		received = amount
 		return true
-
-class TestAuthorityClient:
-	extends ServerAuthorityClient
-	var captured_moves: Array[Dictionary] = []
-
-	func _enqueue(command: Dictionary) -> void:
-		captured_moves.append(command.duplicate(true))
 
 var _failures := 0
 
@@ -34,9 +27,8 @@ func _init() -> void:
 func _run() -> void:
 	_test_profile_recomputes_stats()
 	_test_player_fsm_and_combo()
-	_test_multitouch_isolation_and_landscape_bounds()
-	_test_immediate_server_move_dispatch()
-	_test_authority_endpoint_fallback_configuration()
+	_test_multitouch_and_safe_area()
+	_test_input_reset_on_lifecycle_boundary()
 	_test_zone_structure()
 	_test_enemy_and_boss_fsm_smoke()
 	_test_inventory_cycles_canonical_equipment()
@@ -44,13 +36,10 @@ func _run() -> void:
 	_test_combat_uses_canonical_damage()
 	_test_pool_reuses_items()
 	_test_performance_contract()
-	_test_reconnect_backoff_is_bounded()
-	_test_fail_closed_locks_and_clears_intents()
-	_test_resume_transitions_are_fail_closed()
 	await _test_full_scene_boot_and_pause()
 	await process_frame
 	if _failures == 0:
-		print("PASS: 16 behavior tests")
+		print("PASS: 12 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -72,7 +61,7 @@ func _test_player_fsm_and_combo() -> void:
 	_expect(hero.state == Hero.State.MOVE, "hero enters move state")
 	controls._pending_actions["jump"] = true
 	_expect(hero._jump_pressed(), "hero consumes mobile jump action")
-	_expect(not hero._jump_pressed(), "mobile jump remains one-shot while held")
+	_expect(not hero._jump_pressed(), "mobile jump remains one-shot")
 	hero._combo_grace = 0.0
 	hero._start_attack()
 	_expect(hero.state == Hero.State.ATTACK and hero._combo_step == 1, "first attack starts combo step one")
@@ -87,13 +76,13 @@ func _test_player_fsm_and_combo() -> void:
 	hero.queue_free()
 	controls.queue_free()
 
-func _test_multitouch_isolation_and_landscape_bounds() -> void:
+func _test_multitouch_and_safe_area() -> void:
 	var controls := MobileControls.new()
 	controls.size = Vector2(1170.0, 540.0)
 	root.add_child(controls)
 	var left := InputEventScreenTouch.new()
 	left.index = 1
-	left.position = Vector2(176.0, 438.0)
+	left.position = controls._joystick_rest_center() + Vector2(48.0, 0.0)
 	left.pressed = true
 	controls._handle_touch(left)
 	var attack := InputEventScreenTouch.new()
@@ -112,49 +101,27 @@ func _test_multitouch_isolation_and_landscape_bounds() -> void:
 	controls._handle_touch(jump)
 	_expect(int(controls._button_owners.jump) == 3, "jump has an independent touch owner")
 	_expect(controls.consume_action(&"jump"), "jump touch queues exactly one action")
+	var scaled := MobileControls.scale_safe_area(Vector2(1170.0, 540.0), Vector2i(2340, 1080), Rect2i(120, 0, 2100, 1080))
+	_expect(is_equal_approx(scaled.position.x, 60.0) and is_equal_approx(scaled.end.x, 1110.0), "safe area scales from display pixels into viewport coordinates")
 	for action in ["attack", "jump", "skill_one", "skill_two"]:
 		var center: Vector2 = controls._button_center(action)
 		_expect(center.x > controls.size.x * 0.5 and center.x < controls.size.x, "%s stays inside landscape right half" % action)
 		_expect(center.y > 0.0 and center.y < controls.size.y, "%s stays vertically on-screen" % action)
-	var pause_center := controls._pause_center()
-	_expect(pause_center.x > controls.size.x * 0.5 and pause_center.y > 0.0, "pause control stays in landscape safe quadrant")
-	var left_release := InputEventScreenTouch.new()
-	left_release.index = 1
-	left_release.position = left.position
-	left_release.pressed = false
-	controls._handle_touch(left_release)
-	var attack_release := InputEventScreenTouch.new()
-	attack_release.index = 2
-	attack_release.position = attack.position
-	attack_release.pressed = false
-	controls._handle_touch(attack_release)
-	var jump_release := InputEventScreenTouch.new()
-	jump_release.index = 3
-	jump_release.position = jump.position
-	jump_release.pressed = false
-	controls._handle_touch(jump_release)
 	controls.queue_free()
 
-func _test_immediate_server_move_dispatch() -> void:
-	var client := TestAuthorityClient.new()
-	client._set_phase(ServerAuthorityClient.Phase.ONLINE, "test")
-	client.set_move_direction(1)
-	_expect(client.captured_moves.size() == 1, "direction change dispatches move immediately")
-	_expect(int(client.captured_moves[0].direction) == 1, "immediate move carries requested direction")
-	client.set_move_direction(1)
-	_expect(client.captured_moves.size() == 1, "same direction does not spam immediate moves")
-	client.set_move_direction(-1)
-	_expect(client.captured_moves.size() == 2 and int(client.captured_moves[1].direction) == -1, "direction reversal dispatches immediately")
-	_expect(ServerAuthorityClient.MOVE_INTERVAL <= 0.08, "move cadence stays responsive")
-
-func _test_authority_endpoint_fallback_configuration() -> void:
-	var client := ServerAuthorityClient.new()
-	client._append_server_url("https://primary.example")
-	client._append_server_url("https://fallback.example")
-	client._append_server_url("https://primary.example")
-	_expect(client._server_urls.size() == 2, "authority endpoint list deduplicates primary and fallback")
-	_expect(client._network_error_detail(HTTPRequest.RESULT_CANT_RESOLVE) == "dns_failed", "DNS failures are identified explicitly")
-	_expect(client._network_error_detail(HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR) == "tls_failed", "TLS failures are identified explicitly")
+func _test_input_reset_on_lifecycle_boundary() -> void:
+	var controls := MobileControls.new()
+	controls.size = Vector2(960.0, 540.0)
+	root.add_child(controls)
+	controls._left_touch = 4
+	controls._left_origin = Vector2(100.0, 400.0)
+	controls._left_position = Vector2(150.0, 400.0)
+	controls._button_owners["attack"] = 5
+	controls._pending_actions["attack"] = true
+	controls.reset_inputs()
+	_expect(controls._left_touch == -1 and controls.get_move_axis() == Vector2.ZERO, "lifecycle reset clears joystick ownership")
+	_expect(int(controls._button_owners["attack"]) == -1 and not bool(controls._pending_actions["attack"]), "lifecycle reset clears action ownership and pending input")
+	controls.queue_free()
 
 func _test_zone_structure() -> void:
 	var zone := ZoneBuilder.new()
@@ -228,6 +195,13 @@ func _test_save_rejects_tampering() -> void:
 	var tampered := repository.load_game()
 	_expect(not tampered.ok and tampered.error == "save_checksum_mismatch", "edited payload fails checksum")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(repository.save_path))
+	var hero := Hero.new()
+	root.add_child(hero)
+	var dead_payload := payload.duplicate(true)
+	dead_payload.health = 0
+	_expect(hero.restore_save_payload(dead_payload), "valid zero-health save restores")
+	_expect(hero.state == Hero.State.DEATH, "zero-health restore keeps death state consistent")
+	hero.queue_free()
 
 func _test_combat_uses_canonical_damage() -> void:
 	var authority := CombatAuthority.new()
@@ -240,6 +214,9 @@ func _test_combat_uses_canonical_damage() -> void:
 	target.position = Vector2(40.0, 0.0)
 	_expect(authority.resolve_hit(source, target, &"basic_one"), "nearby hit resolves")
 	_expect(target.received == 28, "damage formula uses attack minus defense")
+	target.received = 0
+	_expect(authority.resolve_environment_hit(target, 18, Vector2.ZERO), "hazard damage resolves through local authority")
+	_expect(target.received == 18, "hazard keeps canonical environment damage")
 	target.position = Vector2(300.0, 0.0)
 	_expect(not authority.resolve_hit(source, target, &"basic_one"), "out-of-range hit is rejected")
 	authority.queue_free()
@@ -263,54 +240,6 @@ func _test_performance_contract() -> void:
 	_expect(Engine.max_fps == 60, "runtime keeps the 60 FPS cap")
 	_expect(PerformanceBudget.DRAW_CALL_BUDGET == 50, "draw-call budget remains capped at 50")
 
-func _test_reconnect_backoff_is_bounded() -> void:
-	_expect(ServerAuthorityClient.compute_retry_delay(0, 0.0) > 0.0, "first retry delay is positive")
-	_expect(ServerAuthorityClient.compute_retry_delay(0, 0.0) < ServerAuthorityClient.compute_retry_delay(1, 0.0), "backoff grows exponentially")
-	for attempt in range(0, 12):
-		for value in [0.0, 0.5, 0.999]:
-			var delay := ServerAuthorityClient.compute_retry_delay(attempt, value)
-			_expect(delay > 0.0 and delay <= 30.0, "retry delay never exceeds the 30 second cap")
-	_expect(is_equal_approx(ServerAuthorityClient.compute_retry_delay(10, 0.5), 30.0), "backoff caps at 30 seconds")
-
-func _test_fail_closed_locks_and_clears_intents() -> void:
-	var client := ServerAuthorityClient.new()
-	client._session_id = "00000000-0000-0000-0000-000000000000"
-	client._token = "f".repeat(64)
-	client._set_phase(ServerAuthorityClient.Phase.ONLINE, "test")
-	client._command_queue.append({"action": "attack"})
-	client._inflight_command = {"action": "move", "direction": 1, "seq": 4}
-	client._fail_closed("test_failure")
-	_expect(client._command_queue.is_empty(), "fail-closed clears queued commands")
-	_expect(client._inflight_command.is_empty(), "fail-closed clears the in-flight command")
-	_expect(client._next_sequence == 1, "fail-closed invalidates the stale sequence")
-	_expect(client.phase == ServerAuthorityClient.Phase.RECONNECTING, "saved session reconnects with bounded retries")
-	_expect(client._retry_countdown > 0.0, "reconnect retry is scheduled")
-	var fresh := ServerAuthorityClient.new()
-	fresh._set_phase(ServerAuthorityClient.Phase.ONLINE, "test")
-	fresh._fail_closed("test_failure")
-	_expect(fresh.phase == ServerAuthorityClient.Phase.OFFLINE, "sessionless client stays offline without retry")
-	_expect(fresh._retry_countdown == 0.0, "no retry is scheduled without credentials")
-	var locked := ServerAuthorityClient.new()
-	locked._set_phase(ServerAuthorityClient.Phase.RECONNECTING, "test")
-	_expect(not locked.submit_action("attack"), "commands are rejected while reconnecting")
-	locked._set_phase(ServerAuthorityClient.Phase.OFFLINE, "test")
-	_expect(not locked.submit_action("jump"), "commands are rejected while offline")
-
-func _test_resume_transitions_are_fail_closed() -> void:
-	var labels: Array[String] = []
-	var client := ServerAuthorityClient.new()
-	client.connection_state_changed.connect(func(state: String, _detail: String) -> void: labels.append(state))
-	client._session_id = "00000000-0000-0000-0000-000000000000"
-	client._token = "f".repeat(64)
-	client._set_phase(ServerAuthorityClient.Phase.RECONNECTING, "test")
-	client._handle_resume(404, {})
-	_expect(client.phase == ServerAuthorityClient.Phase.RECONNECTING, "unknown session stays locked for authenticated resume retry")
-	_expect(client._request_kind != "create", "resume failure never silently creates a new session")
-	client._handle_resume(200, {"ok": true, "state": {"lastSeq": 5}})
-	_expect(client.phase == ServerAuthorityClient.Phase.ONLINE, "authenticated resume returns online")
-	_expect(client._next_sequence == 6, "resume refreshes sequence only from the server snapshot")
-	_expect(labels.has("RECONNECTING") and labels.has("ONLINE"), "HUD receives reconnecting and online labels")
-
 func _test_full_scene_boot_and_pause() -> void:
 	var packed := load("res://scenes/game.tscn") as PackedScene
 	_expect(packed != null, "main game scene loads")
@@ -324,8 +253,10 @@ func _test_full_scene_boot_and_pause() -> void:
 	_expect(is_instance_valid(game._hud), "game scene creates HUD")
 	_expect(is_instance_valid(game._controls), "game scene creates mobile controls")
 	_expect(game._controls.process_mode == Node.PROCESS_MODE_ALWAYS, "pause control remains responsive while paused")
+	game._controls._left_touch = 9
 	game._toggle_user_pause()
 	_expect(paused and game._hud._paused, "pause freezes tree and shows overlay")
+	_expect(game._controls._left_touch == -1, "pause clears active touch ownership")
 	game._toggle_user_pause()
 	_expect(not paused and not game._hud._paused, "resume restores gameplay")
 	game.queue_free()
@@ -336,4 +267,3 @@ func _expect(condition: bool, label: String) -> void:
 		return
 	_failures += 1
 	push_error("FAIL: " + label)
-

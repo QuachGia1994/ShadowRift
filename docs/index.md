@@ -1,9 +1,8 @@
 # Documentation
 
-- `biz/product.md` - v1 audience, value, and monetization boundary.
-- `feat/gameplay.md` - current gameplay and content scope.
-- `arch/game-architecture.md` - runtime ownership and module boundaries.
-- `arch/integrity.md` - threat model, implemented controls, and limits.
-- `plan/build-v1.md` - milestone status and remaining device gates.
-- `../server/` - deterministic authority domain, Durable Object adapter, and server tests.
-- `../.github/workflows/` - public verification, mobile build, and manual server deployment workflows.
+- `biz/product.md` - v1 audience, value, runtime, and monetization boundary.
+- `feat/gameplay.md` - current gameplay, input, combat, and progression scope.
+- `arch/game-architecture.md` - local Godot runtime ownership and module boundaries.
+- `arch/integrity.md` - offline single-player integrity model, implemented controls, and reopen trigger.
+- `plan/build-v1.md` - completed source gates and remaining device acceptance.
+- `../.github/workflows/` - public Godot verification and Android/iOS pre-release artifact workflows.

@@ -1,7 +1,6 @@
 .godot/
 build/
 exports/
-server/node_modules/
-server/.wrangler/
 *.tmp
 *.log
+

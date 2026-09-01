@@ -31,4 +31,3 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(x - 9.0, 12.0), Vector2(x, -16.0), Vector2(x + 9.0, 12.0)]), fill)
 		draw_line(Vector2(x, -13.0), Vector2(x, 8.0), Color(0.94, 0.72, 0.67, 0.72), 2.0)
 		draw_circle(Vector2(x, -15.0), 2.2, Color(1.0, 0.40, 0.38, 0.46))
-

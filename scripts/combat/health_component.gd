@@ -19,7 +19,7 @@ func configure(maximum_health: int, invulnerability_seconds: float = 0.48) -> vo
 func tick(delta: float) -> void:
 	_iframe_remaining = maxf(0.0, _iframe_remaining - delta)
 
-func apply_authoritative_damage(amount: int, knockback: Vector2) -> bool:
+func apply_canonical_damage(amount: int, knockback: Vector2) -> bool:
 	if amount <= 0 or current <= 0 or _iframe_remaining > 0.0:
 		return false
 	current = maxi(0, current - amount)

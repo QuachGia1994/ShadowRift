@@ -1,57 +1,36 @@
 # Shadow Rift
 
-Godot 4.7.2 landscape mobile action-RPG vertical slice for Android and iOS. v1 contains one zone, a two-hit player combo, two skills, two enemy types, one single-phase boss, equipment, pooled effects, and procedural placeholder art. Protected mobile exports use a Cloudflare Worker and SQLite Durable Object as the sole authority for movement bounds, combat, HP/MP, equipment, EXP, gold, and persistence.
+Godot 4.7.2 landscape mobile action-RPG vertical slice for Android and iOS. v1 contains one zone, a two-hit player combo, one-shot jump touch, two skills, two enemy types, one single-phase boss, equipment, pooled effects, and procedural placeholder art.
+
+The pre-release mobile builds use the same local Godot gameplay runtime as the editor build. There is no gameplay server, bearer token, reconnect state machine, or network dependency in v1; movement/combat response is therefore limited by local frame/physics timing instead of HTTP round trips.
 
 ## Run
 
 1. Install Godot 4.7.2 with export templates. On the Windows machine, keep tools off `C:`: use `D:\DevTools\Godot\` for Godot, `D:\Android\Sdk\` for the Android SDK, and `D:\DevTools\Java\` for the JDK.
 2. Open `project.godot` in Godot and run the main scene.
-3. Desktop fallback controls: `A/D` or arrows move, `Space` jumps, `J` attacks, `K/L` use skills. Mobile uses one isolated left joystick touch plus independent attack and skill touch indices.
-4. Tap the Weapon or Armor slots in the HUD to cycle the two v1 equipment choices.
-
-Editor runs intentionally use local debug authority. Both mobile presets include the `server_authoritative` feature and fail closed when the configured HTTPS server is unavailable.
+3. Desktop fallback controls: `A/D` or arrows move, `Space` jumps, `J` attacks, `K/L` use skills.
+4. Mobile controls: left joystick + independent `A` attack, `J` jump, skill `1`, skill `2`, and pause. Active touches are cleared on pause/focus loss so resumed play cannot inherit stale input.
+5. Tap the Weapon or Armor slots in the HUD to cycle the two v1 equipment choices.
 
 ## Verify
 
-Run the source contract check and the deterministic server suites:
+Run the static contract and Godot behavior suite:
 
 ```bash
 python tools/verify_project.py
-cd server
-npm test
-```
-
-`npm test` runs the deterministic domain unit tests plus the Worker integration suite: `@cloudflare/vitest-plugin` drives 12 end-to-end tests against the real Worker and SQLite Durable Object inside workerd, isolated from the production Worker. `npm run typecheck` type-checks the Worker and the tests using generated runtime types; rerun `npx wrangler types` after changing any binding.
-
-With Godot installed, run behavior tests:
-
-```bash
+godot --headless --path . --editor --quit
 godot --headless --path . --script res://tests/test_runner.gd
 ```
 
-## Authority server
+GitHub `Verify` pins Godot 4.7.2, imports/parses the project, runs the source contract, and runs 12 deterministic GDScript behavior tests covering player/input, safe-area mapping, lifecycle input reset, world structure, enemy/boss FSMs, inventory, save validation, local canonical combat/hazard damage, pooling, performance contracts, and pause/resume.
 
-The server accepts only intent commands: move direction, jump, attack, skill slot, equipment ID, and sync. It rejects unknown fields, client damage/stats/rewards, invalid items, out-of-range targets, cooldown/mana violations, and replayed or out-of-order sequence numbers. A random bearer token is hashed before storage; game state is serialized and persisted inside one Durable Object per session.
+## Mobile pre-release export
 
-Protected clients reconnect fail-closed: any transport, protocol, or authentication failure locks gameplay, clears every queued and in-flight intent, and invalidates the stale sequence. Only authenticated session resume is retried, with exponential backoff and jitter capped at 30 seconds, and `lastSeq` is refreshed only from an authenticated snapshot before new input is accepted. An invalid or expired token stays locked; the client never silently creates a replacement session, and the bearer token is never logged. The HUD surfaces ONLINE, CONNECTING, RECONNECTING, and OFFLINE states.
+- Package version: `0.1.0`; bundle/package identifier: `uk.oakgatekeeper.shadowrift`.
+- Android CI exports an installable debug-signed pre-release APK named `ShadowRift-prerelease.apk` and verifies package/version metadata with Android build tools.
+- iOS CI exports the Godot Xcode project, builds an unsigned device `.app`, validates bundle/version metadata, and packages `ShadowRift-unsigned.ipa`. `CIUNSIGNED` is only a Godot project-export sentinel; Xcode code signing is disabled in CI.
+- Production Play/App Store signing credentials are intentionally not stored in the public repository. A production release must replace the CI-only signing path with the owner's Android keystore and Apple Team/certificate/provisioning profile.
 
-```bash
-cd server
-npm ci
-npm test
-npm run typecheck
-npm run deploy
-```
+## Persistence and integrity
 
-The protected client currently uses `https://shadowrift-authority.kim-phong619.workers.dev`; change `shadow_rift/server/base_url` only when deploying a replacement authority. The public repository contains no signing or Cloudflare credential. Manual server deployment reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from GitHub environment secrets.
-
-## Mobile debug export
-
-- Public GitHub Actions verifies source/server behavior and builds the Android debug APK plus an unsigned iOS application/Xcode archive. The public workflow contains no signing material.
-- Android local: set SDK/JDK paths to the `D:` locations above, install Android templates, connect a USB-debug device, and export `Android Debug`.
-- iOS device: replace the placeholder Team ID, provide an Apple certificate/provisioning profile through protected GitHub environment secrets or Xcode, then sign and install. An unsigned `.ipa` cannot run on a real iPhone. Xcode cannot run on Windows.
-- The bundle identifier is `uk.oakgatekeeper.shadowrift`; change it only if that identifier is not owned by the final signing account.
-
-## Integrity boundary
-
-The official server, not the mobile process, owns valuable state. Cheat Engine or a modded package can fake pixels on that device and automate valid input, but cannot submit damage, ATK/DEF, HP/MP, rewards, equipment definitions, or save payloads accepted by the official server. The local session token identifies an anonymous session; account recovery, device attestation, rate analytics, and ban operations remain post-MVP hardening work.
+v1 is offline single-player. `SaveRepository` validates schema/ranges/equipment and stores a SHA-256 checksum to detect accidental corruption or unsophisticated edits. The checksum salt ships with the client, so it is not an anti-cheat or cryptographic trust boundary; a modified client can alter its own local progress. No competitive ranking, paid currency, trading, or shared economy exists in v1, so no device-attestation/token system is required for this pre-release scope.

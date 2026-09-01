@@ -1,26 +1,28 @@
 # Game architecture
 
-> updated 2026-09-01 · M16 release gate
+> updated 2026-09-01 · 0.1.0
 
 ```mermaid
 flowchart TD
     Input[MobileControls] --> Hero
-    Hero -->|intent only| Client[ServerAuthorityClient]
-    Client --> Worker[Cloudflare Worker]
-    Worker --> Session[SQLite Durable Object]
-    Session -->|snapshot and events| Client
-    Client --> Actors[Hero, enemies, boss]
-    Debug[Editor local mode] --> Combat[CombatAuthority]
+    Hero --> Combat[CombatAuthority]
+    Enemy[Enemy/Boss FSM] --> Combat
+    Hazard[Hazard] --> Combat
     Combat --> Health[HealthComponent]
+    Health --> Hero
+    Health --> Enemy
+    Hero --> Profile[PlayerProfile]
+    Profile --> Save[SaveRepository]
+    World[GameWorld] --> HUD[GameHud]
 ```
 
-- `MobileControls` owns touch indices and emits one-shot actions; actors never inspect raw screen touches.
-- In protected mobile exports, actors render server snapshots. They do not activate local damaging hitboxes, spend MP, grant rewards, load local saves, or run enemy combat AI.
-- `ServerAuthorityClient` serializes one request at a time, resumes an opaque session, enforces sequence continuity, and locks gameplay on any connection/protocol failure. On failure it clears every queued and in-flight intent, invalidates the stale sequence, and retries only authenticated resume with exponential backoff and jitter capped at 30 seconds; `lastSeq` is refreshed only from an authenticated snapshot, and the HUD surfaces ONLINE, CONNECTING, RECONNECTING, and OFFLINE.
-- The Worker authenticates bearer tokens by hash and routes each opaque session ID to one SQLite-backed Durable Object. An integration suite (`server/test/worker.test.ts`) exercises the real Worker and Durable Object end to end inside workerd.
-- The deterministic server domain owns time, movement bounds, target selection, cooldown, mana cost, equipment allowlists, derived stats, damage, death, EXP, gold, and persistence.
-- Editor-only local mode retains `Hitbox`, `Hurtbox`, `CombatAuthority`, `HealthComponent`, and checksummed saves for fast iteration and offline behavior tests.
-- `PlayerProfile` recomputes derived stats from level and the weapon/armor catalog.
-- `SaveRepository` owns only editor/local-debug persistence; protected exports never call it.
-- `ReusablePool` owns projectile and damage-number reuse.
-- `ZoneBuilder` owns the procedural TileSet, three TileMapLayer nodes, collision, hazard, and platforms.
+- One native Godot gameplay flow runs in editor, Android, and iOS; v1 has no gameplay network client or server runtime.
+- `MobileControls` owns touch indices, safe-area positioning, one-shot actions, pause input, and lifecycle reset. Actors never inspect raw screen-touch ownership directly.
+- `Hero` owns movement/jump/FSM/input consumption and delegates damage resolution to `CombatAuthority` through hitboxes/projectiles.
+- `EnemyController` and `BossController` run their local FSMs on every platform; pause works by pausing the scene tree rather than maintaining a second simulation.
+- `CombatAuthority` is the single canonical local damage boundary for melee, projectiles, enemy attacks, and hazards; `HealthComponent` applies canonical damage and i-frames.
+- `PlayerProfile` recomputes derived stats from level and the weapon/armor catalog. Displayed ATK/DEF are never loaded directly from save data.
+- `SaveRepository` owns local single-player persistence and validates schema, ranges, equipment IDs, canonical stat limits, and checksum before restoring progress.
+- `ReusablePool` owns projectile and damage-number reuse; `PerformanceBudget` keeps the v1 draw-call budget visible.
+- `ZoneBuilder` owns the procedural TileSet, three TileMapLayer nodes, collision, hazard, and one-way platforms.
+- `GameHud` and `MobileControls` map platform safe-area pixels into the stretched Godot viewport so notch/cutout/gesture insets do not own interactive controls.

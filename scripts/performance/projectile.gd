@@ -61,4 +61,3 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, 11.0, Color(0.20, 0.68, 0.96, 0.84))
 	draw_circle(Vector2.ZERO, 6.0, Color(0.72, 0.94, 1.0))
 	draw_line(Vector2(-24.0 * _direction, 0.0), Vector2(-8.0 * _direction, 0.0), Color(0.19, 0.44, 0.88, 0.68), 7.0)
-

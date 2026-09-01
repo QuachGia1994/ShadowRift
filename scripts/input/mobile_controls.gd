@@ -9,6 +9,7 @@ const JOYSTICK_KNOB_RADIUS := 28.0
 const JOYSTICK_DEAD_ZONE := 0.12
 const BUTTON_RADIUS := 38.0
 const BUTTON_HIT_RADIUS := 56.0
+const SAFE_EDGE_FALLBACK := 18.0
 const ACTION_ORDER := ["attack", "jump", "skill_one", "skill_two"]
 
 var _left_touch := -1
@@ -21,6 +22,19 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process_input(true)
+	queue_redraw()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		reset_inputs()
+
+func reset_inputs() -> void:
+	_left_touch = -1
+	_left_origin = Vector2.ZERO
+	_left_position = Vector2.ZERO
+	for action in ACTION_ORDER:
+		_button_owners[action] = -1
+		_pending_actions[action] = false
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
@@ -94,21 +108,38 @@ func _claim_button(touch_index: int, position: Vector2) -> void:
 	queue_redraw()
 
 func _joystick_rest_center() -> Vector2:
-	return Vector2(112.0, size.y - 102.0)
+	var safe := _safe_area_rect()
+	return Vector2(safe.position.x + 112.0, safe.end.y - 102.0)
 
 func _button_center(action: String) -> Vector2:
+	var safe := _safe_area_rect()
 	match action:
 		"attack":
-			return Vector2(size.x - 86.0, size.y - 88.0)
+			return Vector2(safe.end.x - 86.0, safe.end.y - 88.0)
 		"jump":
-			return Vector2(size.x - 88.0, size.y - 188.0)
+			return Vector2(safe.end.x - 88.0, safe.end.y - 188.0)
 		"skill_one":
-			return Vector2(size.x - 190.0, size.y - 156.0)
+			return Vector2(safe.end.x - 190.0, safe.end.y - 156.0)
 		_:
-			return Vector2(size.x - 198.0, size.y - 58.0)
+			return Vector2(safe.end.x - 198.0, safe.end.y - 58.0)
 
 func _pause_center() -> Vector2:
-	return Vector2(size.x - 48.0, 78.0)
+	var safe := _safe_area_rect()
+	return Vector2(safe.end.x - 48.0, safe.position.y + 60.0)
+
+func _safe_area_rect() -> Rect2:
+	var fallback := Rect2(Vector2(SAFE_EDGE_FALLBACK, SAFE_EDGE_FALLBACK), Vector2(maxf(1.0, size.x - SAFE_EDGE_FALLBACK * 2.0), maxf(1.0, size.y - SAFE_EDGE_FALLBACK * 2.0)))
+	var display_size := DisplayServer.screen_get_size()
+	var display_safe := DisplayServer.get_display_safe_area()
+	if display_size.x <= 0 or display_size.y <= 0 or display_safe.size.x <= 0 or display_safe.size.y <= 0:
+		return fallback
+	return scale_safe_area(size, display_size, display_safe)
+
+static func scale_safe_area(viewport_size: Vector2, display_size: Vector2i, safe_area: Rect2i) -> Rect2:
+	if display_size.x <= 0 or display_size.y <= 0:
+		return Rect2(Vector2.ZERO, viewport_size)
+	var scale := Vector2(viewport_size.x / float(display_size.x), viewport_size.y / float(display_size.y))
+	return Rect2(Vector2(safe_area.position) * scale, Vector2(safe_area.size) * scale)
 
 func _draw() -> void:
 	_draw_joystick()

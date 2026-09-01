@@ -8,9 +8,6 @@ var _boss: BossController
 var _save_repository := SaveRepository.new()
 var _projectile_pool: ReusablePool
 var _damage_number_pool: ReusablePool
-var _server_authority_enabled := OS.has_feature("server_authoritative")
-var _server_client: ServerAuthorityClient
-var _server_enemies: Dictionary = {}
 var _hud: GameHud
 var _controls: MobileControls
 var _paused_by_user := false
@@ -21,13 +18,10 @@ func _ready() -> void:
 	_create_pools()
 	_create_controls()
 	_create_hero()
-	if not _server_authority_enabled:
-		_load_progress()
+	_load_progress()
 	_create_enemies()
 	_create_boss()
 	_create_hud()
-	if _server_authority_enabled:
-		_create_server_authority()
 	queue_redraw()
 
 func _create_combat_authority() -> void:
@@ -72,32 +66,26 @@ func _create_controls() -> void:
 func _create_hero() -> void:
 	_hero = Hero.new()
 	_hero.position = Vector2(180.0, GROUND_Y - 34.0)
+	_hero.persistence_requested.connect(_save_progress)
 	add_child(_hero)
 
 func _create_enemies() -> void:
 	var warden := EnemyController.new()
 	warden.configure(EnemyController.Kind.WARDEN, _hero)
 	warden.position = Vector2(620.0, GROUND_Y - 28.0)
-	warden.server_entity_id = "warden-1"
 	warden.defeated.connect(_hero.grant_rewards)
-	warden.defeated.connect(_save_progress.unbind(2))
 	add_child(warden)
-	_server_enemies[warden.server_entity_id] = warden
 	var wraith := EnemyController.new()
 	wraith.configure(EnemyController.Kind.WRAITH, _hero)
 	wraith.position = Vector2(1160.0, GROUND_Y - 28.0)
-	wraith.server_entity_id = "wraith-1"
 	wraith.defeated.connect(_hero.grant_rewards)
-	wraith.defeated.connect(_save_progress.unbind(2))
 	add_child(wraith)
-	_server_enemies[wraith.server_entity_id] = wraith
 
 func _create_boss() -> void:
 	_boss = BossController.new()
 	_boss.configure(_hero)
 	_boss.position = Vector2(1970.0, GROUND_Y - 42.0)
 	_boss.defeated.connect(_hero.grant_rewards)
-	_boss.defeated.connect(_save_progress.unbind(2))
 	add_child(_boss)
 
 func _create_hud() -> void:
@@ -109,57 +97,10 @@ func _create_hud() -> void:
 	_hud.configure(_hero, _boss)
 	layer.add_child(_hud)
 
-func _create_server_authority() -> void:
-	_server_client = ServerAuthorityClient.new()
-	_server_client.process_mode = Node.PROCESS_MODE_ALWAYS
-	_server_client.snapshot_received.connect(_apply_server_snapshot)
-	_server_client.server_events_received.connect(_apply_server_events)
-	_server_client.connection_state_changed.connect(_on_server_connection_changed)
-	add_child(_server_client)
-	_hero.bind_server_authority(_server_client)
-	_server_client.connect_to_authority()
-
-func _apply_server_snapshot(snapshot: Dictionary) -> void:
-	var player: Variant = snapshot.get("player", {})
-	if player is Dictionary:
-		_hero.apply_server_snapshot(player)
-	var enemies: Variant = snapshot.get("enemies", [])
-	if not enemies is Array:
-		return
-	for enemy_snapshot in enemies:
-		if not enemy_snapshot is Dictionary:
-			continue
-		var entity_id := str(enemy_snapshot.get("id", ""))
-		if entity_id == _boss.server_entity_id:
-			_boss.apply_server_snapshot(enemy_snapshot)
-		elif _server_enemies.has(entity_id):
-			(_server_enemies[entity_id] as EnemyController).apply_server_snapshot(enemy_snapshot)
-
-func _apply_server_events(events: Array) -> void:
-	for event in events:
-		if not event is Dictionary or not event.has("amount"):
-			continue
-		var target_id := str(event.get("targetId", ""))
-		var target: Node2D
-		if str(event.get("type", "")) == "player_damage":
-			target = _hero
-		elif target_id == _boss.server_entity_id:
-			target = _boss
-		else:
-			target = _server_enemies.get(target_id) as Node2D
-		if is_instance_valid(target):
-			_show_damage_number(target.global_position + Vector2(0.0, -46.0), int(event.amount))
-
-func _on_server_connection_changed(state: String, detail: String) -> void:
-	var available := state == "ONLINE"
-	_hero.set_server_connection_available(available)
-	if is_instance_valid(_hud):
-		_hud.set_network_status(state, detail)
-
 func _toggle_user_pause() -> void:
 	_paused_by_user = not _paused_by_user
-	if _server_authority_enabled and is_instance_valid(_server_client):
-		_server_client.set_move_direction(0)
+	if is_instance_valid(_controls):
+		_controls.reset_inputs()
 	if is_instance_valid(_hud):
 		_hud.set_pause_state(_paused_by_user)
 	get_tree().paused = _paused_by_user
@@ -170,12 +111,13 @@ func _load_progress() -> void:
 		_hero.restore_save_payload(result.payload)
 
 func _save_progress() -> void:
-	if _server_authority_enabled:
-		return
 	if is_instance_valid(_hero):
 		_save_repository.save_game(_hero.export_save_payload())
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if is_instance_valid(_controls):
+			_controls.reset_inputs()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
 		_save_progress()
 

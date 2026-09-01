@@ -1,38 +1,30 @@
 # ARPG mobile v1 build
 
-## Status
+## Current state
 
-M18 is the single final milestone. It absorbs every remaining PARTIAL gate from M1–M17 so there is no M19+ roadmap for v1.
+M1–M18 source scope is closed. The final PRO pre-release remediation removes the experimental gameplay authority server from the shipped v1 path because real-device testing showed unacceptable network latency and availability friction for a single-player action game.
 
-| Milestone | Status | Evidence / closure path |
+| Gate | Status | Evidence / acceptance |
 | --- | --- | --- |
-| 1. Player FSM and input | ABSORBED → M18 | FSM + two-hit combo runtime tests; isolated multi-touch runtime test; final touch feel remains device acceptance. |
-| 2. Combat | ABSORBED → M18 | Canonical damage behavior test remains in the Godot suite. |
-| 3. Zone | ABSORBED → M18 | Runtime structure test asserts three TileMapLayer nodes, hazard, and both one-way platforms. |
-| 4. Enemies | ABSORBED → M18 | Warden and boss FSM smoke tests execute in Godot CI; tuning feel remains device acceptance. |
-| 5. Boss and HUD | ABSORBED → M18 | Full-scene boot test + pause overlay contract + landscape device acceptance. |
-| 6. Inventory | ABSORBED → M18 | Hero equipment cycling + canonical stat test. |
-| 7. Save | ABSORBED → M18 | Real `user://` filesystem round-trip and checksum tamper rejection test. |
-| 8. Performance | ABSORBED → M18 | Pool reuse + 60 FPS cap + 50 draw-call budget contracts; sustained FPS/thermals remain device acceptance. |
-| 9. Mobile exports | ABSORBED → M18 | Android artifact previously launched; final landscape Android + unsigned iOS artifacts are triggered by M18. |
-| 10. Authority server | PASS | Unit tests + Worker/Durable Object E2E + live authority health/session evidence. |
-| 11. Protected client | ABSORBED → M18 | Runtime bounded reconnect, resume, fail-closed intent clearing, and pause zero-movement contracts. |
-| 12. Public mobile CI | ABSORBED → M18 | Verify + Android + unsigned iOS workflows; M18 produces the final trigger. |
-| 13. Canonical workspace | PASS | Canonical repo at `D:\LacViet\ShadowRift`. |
-| 14. Public repository | PASS | Public origin with milestone branches and `main`. |
-| 15. Live authority | PASS | Live Worker health/session creation previously observed. |
-| 16. Release gate & server E2E | ABSORBED → M18 | 12 Worker/DO integration tests + expanded Godot runtime suite. |
-| 17. Landscape device stabilization | ABSORBED → M18 | Landscape lock + `expand` stretch guarded statically; final visual fit is device acceptance. |
-| 18. V1 Final Closeout | PASS (baseline) | M18 Verify + Mobile builds completed green. Post-M18 acceptance hotfix stays outside milestone numbering. |
+| Player FSM + two-hit combo | SOURCE COMPLETE | Godot behavior tests cover state transitions, combo cap, jump one-shot, hurt, death. |
+| Multi-touch mobile input | SOURCE COMPLETE | Isolated joystick/action ownership, safe-area mapping, lifecycle reset behavior tests. |
+| Combat + hazard | SOURCE COMPLETE | Canonical local melee/environment damage tests; enemy/boss FSM smoke tests. |
+| Zone | SOURCE COMPLETE | Three TileMapLayer nodes, hazard, and two one-way platforms verified at runtime. |
+| Inventory + progression | SOURCE COMPLETE | Canonical equipment/stat behavior test. |
+| Save | SOURCE COMPLETE | Real `user://` round-trip, schema/range checks, checksum tamper rejection. |
+| Pause/lifecycle | SOURCE COMPLETE | Scene-tree pause/resume plus touch reset contract. |
+| Performance | SOURCE COMPLETE | 60 FPS cap, pooled effects, 50 draw-call budget; sustained thermals remain device acceptance. |
+| Android/iOS layout | SOURCE COMPLETE | Landscape + `expand` stretch + safe-area-aware HUD/controls. |
+| Android pre-release artifact | CI GATE | Installable debug-signed `0.1.0` APK with package/version metadata verification. |
+| iOS pre-release artifact | CI GATE | Unsigned `0.1.0` device app/IPA with bundle/version metadata verification. |
+| Production store signing | OUTSIDE PRE-RELEASE | Requires owner Android keystore and Apple signing identity/profile; no secrets belong in the public repo. |
 
-## Post-M18 device acceptance hotfix
+## Architecture decision
 
-`hotfix/mobile-input-ui-polish` addresses real-device evidence without creating M19: dedicated one-shot jump touch, immediate protected movement dispatch on direction changes with 80 ms periodic sync, fixed-base joystick/dead-zone improvements, compact landscape HUD, and procedural visual polish for controls/world/hero/enemies/boss/hazard. `hotfix/android-authority-dns` adds a production custom authority hostname (`shadowrift.oakgatekeeper.uk`) while retaining `workers.dev` as fallback, and the client switches endpoints on DNS/connect/TLS/timeout transport failure without allowing offline protected gameplay. The Godot suite expands to 16 behavior tests.
+v1 uses one local native Godot flow on editor, Android, and iOS. There is no `server_authoritative` export feature, network authority client, Cloudflare gameplay service, bearer session, reconnect state machine, or server deployment workflow in the shipped pre-release source. This keeps movement/combat responsive and removes the pause/network race class identified during device testing.
 
-## Automated gate
-
-`Verify` must run the static source contract, Godot import/parse, 16 GDScript behavior tests, server unit tests, Worker/Durable Object integration tests, and TypeScript type-check. `Mobile builds` must produce the Android debug APK and unsigned iOS IPA artifact. Authority deployment keeps `workers_dev=true` and the custom domain route so DNS failure on one hostname does not remove the other endpoint.
+The local save checksum is a corruption/tamper signal, not a security boundary. Reopen server/account/device-attestation architecture only if later product scope adds valuable shared state such as leaderboards, trading, paid currency, or cloud progression.
 
 ## Final external acceptance
 
-These observations intrinsically require real hardware and remain outside automated truth claims: full-screen landscape/safe-area visual fit, physical multi-touch feel, combat/tuning feel, pause/resume feel, disconnect/reconnect during a real network transition, sustained FPS/device thermals, final Android install/launch, and unsigned iOS artifact/device-side validation where applicable. Once those are observed, v1 has no remaining milestone.
+Only real-device observations remain: full-screen landscape/safe-area visual fit on representative Android/iPhone devices, physical multi-touch feel, combat tuning, sustained FPS/thermals, Android install/launch, and final iOS signing/install once owner credentials are supplied. These are device acceptance checks, not additional source milestones.
