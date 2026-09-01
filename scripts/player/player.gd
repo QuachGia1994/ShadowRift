@@ -15,6 +15,12 @@ const JUMP_SPEED := -520.0
 const ATTACK_DURATION := 0.22
 const COMBO_GRACE := 0.34
 
+const HERO_FRAMES := preload("res://assets/sprites/hero/hero_frames.tres")
+const SLASH_ONE := preload("res://assets/vfx/slash_1.png")
+const SLASH_TWO := preload("res://assets/vfx/slash_2.png")
+const SKILL_SLASH := preload("res://assets/vfx/skill_one_slash.png")
+const DUST_TEXTURE := preload("res://assets/vfx/dust.png")
+
 var state := State.IDLE
 var facing := 1.0
 var _controls: MobileControls
@@ -35,15 +41,18 @@ var _key_actions := {&"attack": false, &"jump": false, &"skill_one": false, &"sk
 var _profile := PlayerProfile.new()
 var _integrity_check_time := 0.0
 var _integrity_violations := 0
-var _visual_time := 0.0
+var _sprite: AnimatedSprite2D
+var _attack_anim := &"attack1"
+var _dust_cooldown := 0.0
+var _dust_alternator := false
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
 	_profile.stats_changed.connect(_on_stats_changed)
 	_add_body_shape()
 	_add_combat_nodes()
+	_add_sprite()
 	_add_camera()
-	queue_redraw()
 	resources_changed.emit(get_resource_snapshot())
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -60,7 +69,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_key_actions[&"skill_two"] = true
 
 func _physics_process(delta: float) -> void:
-	_visual_time += delta
 	if _dead:
 		_health.tick(delta)
 		velocity.y += get_gravity().y * delta
@@ -90,6 +98,7 @@ func _physics_process(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, move_axis * MOVE_SPEED, response * delta)
 	if absf(move_axis) > 0.05:
 		facing = signf(move_axis)
+	_sprite.flip_h = facing < 0.0
 	if _jump_pressed() and is_on_floor():
 		velocity.y = JUMP_SPEED
 		_set_state(State.JUMP)
@@ -105,8 +114,12 @@ func _physics_process(delta: float) -> void:
 		_set_state(State.MOVE)
 	else:
 		_set_state(State.IDLE)
+	if state == State.MOVE and is_on_floor():
+		_dust_cooldown -= delta
+		if _dust_cooldown <= 0.0:
+			_dust_cooldown = 0.16
+			_spawn_dust()
 	move_and_slide()
-	queue_redraw()
 
 func apply_hurt(knockback: Vector2, duration: float = 0.25) -> void:
 	if _dead or state == State.HURT:
@@ -121,7 +134,6 @@ func die() -> void:
 	_dead = true
 	velocity.x = 0.0
 	_set_state(State.DEATH)
-	queue_redraw()
 
 func get_facing() -> float:
 	return facing
@@ -193,11 +205,12 @@ func _start_attack() -> void:
 	_combo_step = 1 if _combo_grace <= 0.0 else 2
 	_attack_time = ATTACK_DURATION
 	velocity.x *= 0.25
+	_attack_anim = &"attack1" if _combo_step == 1 else &"attack2"
 	_set_state(State.ATTACK)
 	var attack_kind := &"basic_one" if _combo_step == 1 else &"basic_two"
 	_hitbox.activate(attack_kind, ATTACK_DURATION * 0.72, Vector2(34.0 * facing, -5.0))
+	_spawn_vfx(SLASH_ONE if _combo_step == 1 else SLASH_TWO, Vector2(26.0 * facing, -8.0), 0.2)
 	attack_requested.emit(_combo_step)
-	queue_redraw()
 
 func _update_attack(delta: float) -> void:
 	_attack_time -= delta
@@ -212,6 +225,7 @@ func _start_skill(kind: StringName, mana_cost: int, duration: float) -> void:
 	_mana -= mana_cost
 	_attack_time = duration
 	velocity.x *= 0.2
+	_attack_anim = kind
 	_set_state(State.ATTACK)
 	if kind == &"skill_two":
 		var pool := get_tree().get_first_node_in_group("projectile_pool") as ReusablePool
@@ -220,6 +234,7 @@ func _start_skill(kind: StringName, mana_cost: int, duration: float) -> void:
 			projectile.activate(self, global_position + Vector2(28.0 * facing, -12.0), facing, kind)
 	else:
 		_hitbox.activate(kind, duration * 0.78, Vector2(42.0 * facing, -7.0))
+		_spawn_vfx(SKILL_SLASH, Vector2(32.0 * facing, -8.0), 0.28)
 	resources_changed.emit(get_resource_snapshot())
 
 func _update_hurt(delta: float) -> void:
@@ -248,6 +263,62 @@ func _set_state(next_state: State) -> void:
 	var previous := state
 	state = next_state
 	state_changed.emit(previous, state)
+	_apply_animation(next_state)
+
+func _apply_animation(next_state: State) -> void:
+	if not is_instance_valid(_sprite):
+		return
+	match next_state:
+		State.IDLE:
+			_play(&"idle")
+		State.MOVE:
+			_play(&"move")
+		State.JUMP:
+			_play(&"jump")
+		State.ATTACK:
+			_play(_attack_anim)
+		State.HURT:
+			_play(&"hurt")
+		State.DEATH:
+			_play(&"death")
+
+func _play(anim: StringName) -> void:
+	if _sprite.animation != anim:
+		_sprite.play(anim)
+
+func _add_sprite() -> void:
+	_sprite = AnimatedSprite2D.new()
+	_sprite.sprite_frames = HERO_FRAMES
+	_sprite.centered = false
+	_sprite.offset = Vector2(-32.0, -43.0)
+	add_child(_sprite)
+	_sprite.play(&"idle")
+
+func _spawn_vfx(texture: Texture2D, local_offset: Vector2, lifetime: float) -> void:
+	var vfx := Sprite2D.new()
+	vfx.texture = texture
+	vfx.position = local_offset
+	vfx.flip_h = facing < 0.0
+	vfx.z_index = 1
+	add_child(vfx)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(vfx, "modulate:a", 0.0, lifetime)
+	tween.tween_property(vfx, "scale", Vector2(1.18, 1.18), lifetime)
+	tween.chain().tween_callback(vfx.queue_free)
+
+func _spawn_dust() -> void:
+	_dust_alternator = not _dust_alternator
+	var vfx := Sprite2D.new()
+	vfx.texture = DUST_TEXTURE
+	vfx.position = Vector2(-8.0 * facing + (4.0 if _dust_alternator else -4.0), 18.0)
+	vfx.z_index = -1
+	add_child(vfx)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(vfx, "modulate:a", 0.0, 0.32)
+	tween.tween_property(vfx, "position:y", vfx.position.y - 5.0, 0.32)
+	tween.chain().tween_callback(vfx.queue_free)
 
 func _add_body_shape() -> void:
 	var collision := CollisionShape2D.new()
@@ -296,39 +367,3 @@ func _on_stats_changed(stats: Dictionary) -> void:
 	if is_instance_valid(_health):
 		_health.set_maximum(int(stats.max_health), true)
 	resources_changed.emit(get_resource_snapshot())
-
-func _draw() -> void:
-	var moving := state == State.MOVE
-	var airborne := state == State.JUMP
-	var bob := sin(_visual_time * 12.0) * 2.0 if moving else 0.0
-	var body_color := Color(0.18, 0.26, 0.40) if state != State.HURT else Color(0.92, 0.30, 0.34)
-	var outline := Color(0.04, 0.055, 0.09, 0.96)
-	var shadow_width := 26.0 if airborne else 34.0
-	var shadow_alpha := 0.20 if airborne else 0.34
-	draw_colored_polygon(PackedVector2Array([Vector2(-shadow_width, 19.0), Vector2(shadow_width, 19.0), Vector2(shadow_width * 0.65, 24.0), Vector2(-shadow_width * 0.65, 24.0)]), Color(0.0, 0.0, 0.0, shadow_alpha))
-	var cape_back := -facing
-	draw_colored_polygon(PackedVector2Array([Vector2(-10.0 * facing, -21.0 + bob), Vector2(31.0 * cape_back, -6.0 + bob), Vector2(24.0 * cape_back, 15.0 + bob), Vector2(-8.0 * facing, 9.0 + bob)]), Color(0.48, 0.055, 0.09, 0.92))
-	draw_colored_polygon(PackedVector2Array([Vector2(-13.0, -22.0 + bob), Vector2(13.0, -22.0 + bob), Vector2(15.0, 12.0 + bob), Vector2(-15.0, 12.0 + bob)]), outline)
-	draw_colored_polygon(PackedVector2Array([Vector2(-10.0, -20.0 + bob), Vector2(10.0, -20.0 + bob), Vector2(11.0, 10.0 + bob), Vector2(-11.0, 10.0 + bob)]), body_color)
-	draw_rect(Rect2(-12.0, -9.0 + bob, 24.0, 5.0), Color(0.68, 0.48, 0.22, 0.92))
-	var leg_phase := sin(_visual_time * 13.0) * 5.0 if moving else 0.0
-	draw_line(Vector2(-6.0, 10.0 + bob), Vector2(-7.0 + leg_phase, 22.0), outline, 6.0)
-	draw_line(Vector2(6.0, 10.0 + bob), Vector2(7.0 - leg_phase, 22.0), outline, 6.0)
-	draw_circle(Vector2(0.0, -31.0 + bob), 11.0, outline)
-	draw_circle(Vector2(0.0, -31.0 + bob), 8.5, Color(0.77, 0.38, 0.20))
-	draw_rect(Rect2(-10.0, -43.0 + bob, 20.0, 6.0), Color(0.16, 0.19, 0.28))
-	var eye_x := 4.0 * facing
-	draw_circle(Vector2(eye_x, -32.0 + bob), 2.2, Color(1.0, 0.78, 0.30))
-	var sword_hand := Vector2(11.0 * facing, -4.0 + bob)
-	var sword_tip := sword_hand + Vector2(30.0 * facing, -12.0)
-	draw_line(sword_hand, sword_tip, Color(0.72, 0.78, 0.84), 4.0)
-	draw_line(sword_tip, sword_tip + Vector2(7.0 * facing, -3.0), Color(0.92, 0.94, 0.96), 2.0)
-	if moving and is_on_floor():
-		var dust_side := -facing
-		for index in range(3):
-			var phase := fmod(_visual_time * 70.0 + float(index) * 9.0, 24.0)
-			draw_circle(Vector2(dust_side * (18.0 + phase), 19.0 - float(index) * 3.0), 2.5 - float(index) * 0.45, Color(0.52, 0.48, 0.42, 0.28))
-	if state == State.ATTACK:
-		var arc_center := Vector2(18.0 * facing, -5.0 + bob)
-		draw_arc(arc_center, 30.0, -1.15 if facing > 0.0 else 1.95, 1.15 if facing > 0.0 else 4.35, 20, Color(1.0, 0.77, 0.30, 0.92), 6.0)
-		draw_arc(arc_center, 36.0, -1.10 if facing > 0.0 else 2.0, 1.05 if facing > 0.0 else 4.30, 20, Color(0.98, 0.92, 0.66, 0.34), 2.0)

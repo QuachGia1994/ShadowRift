@@ -59,10 +59,30 @@ jobs:
           echo "$metadata"
           grep -F "name='$expected_package'" <<<"$metadata"
           grep -F "versionName='$expected_version'" <<<"$metadata"
+      - name: Report APK size and texture memory
+        run: |
+          apk_bytes="$(stat -c %s exports/android/ShadowRift-prerelease.apk)"
+          echo "APK bytes: $apk_bytes ($(( apk_bytes / 1024 / 1024 )) MiB)"
+          echo "apk_bytes=$apk_bytes" >> "$GITHUB_STEP_SUMMARY"
+          python3 tools/report_mobile_memory.py
+          cat build/reports/mobile-memory-report.txt | tee build/reports/mobile-build-summary.txt
+          {
+            echo "apk_bytes=$apk_bytes"
+            echo "asset_source_bytes=$(python3 -c 'import pathlib; print(sum(p.stat().st_size for p in pathlib.Path("assets").rglob("*.png")))')"
+          } >> build/reports/mobile-build-summary.txt
+      - name: Check 16 KB native page-size compatibility
+        continue-on-error: true
+        run: |
+          python3 tools/check_elf_alignment.py exports/android/ShadowRift-prerelease.apk | tee -a build/reports/mobile-build-summary.txt
       - uses: actions/upload-artifact@v7
         with:
           name: ShadowRift-android-prerelease
           path: exports/android/ShadowRift-prerelease.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ShadowRift-android-build-report
+          path: build/reports/
           if-no-files-found: error
 
   ios:

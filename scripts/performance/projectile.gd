@@ -3,12 +3,14 @@ class_name PooledProjectile
 
 const MAX_LIFETIME := 1.6
 const SPEED := 470.0
+const PROJECTILE_TEXTURE := preload("res://assets/vfx/skill_two_projectile.png")
 
 var actor: Node2D
 var attack_kind := &"skill_two"
 var _direction := 1.0
 var _remaining := 0.0
 var _hit_ids: Dictionary = {}
+var _sprite: Sprite2D
 
 func _ready() -> void:
 	collision_layer = 0
@@ -19,6 +21,9 @@ func _ready() -> void:
 	shape.radius = 10.0
 	collision.shape = shape
 	add_child(collision)
+	_sprite = Sprite2D.new()
+	_sprite.texture = PROJECTILE_TEXTURE
+	add_child(_sprite)
 	area_entered.connect(_on_area_entered)
 
 func activate(source: Node2D, origin: Vector2, direction: float, kind: StringName = &"skill_two") -> void:
@@ -28,8 +33,8 @@ func activate(source: Node2D, origin: Vector2, direction: float, kind: StringNam
 	attack_kind = kind
 	_remaining = MAX_LIFETIME
 	_hit_ids.clear()
+	_sprite.flip_h = _direction < 0.0
 	monitoring = true
-	queue_redraw()
 
 func _physics_process(delta: float) -> void:
 	global_position.x += SPEED * _direction * delta
@@ -57,7 +62,3 @@ func _on_area_entered(area: Area2D) -> void:
 	if is_instance_valid(authority) and authority.resolve_projectile_hit(actor, hurtbox.actor, attack_kind):
 		deactivate()
 
-func _draw() -> void:
-	draw_circle(Vector2.ZERO, 11.0, Color(0.20, 0.68, 0.96, 0.84))
-	draw_circle(Vector2.ZERO, 6.0, Color(0.72, 0.94, 1.0))
-	draw_line(Vector2(-24.0 * _direction, 0.0), Vector2(-8.0 * _direction, 0.0), Color(0.19, 0.44, 0.88, 0.68), 7.0)

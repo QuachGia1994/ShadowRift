@@ -12,17 +12,29 @@ const BUTTON_HIT_RADIUS := 56.0
 const SAFE_EDGE_FALLBACK := 18.0
 const ACTION_ORDER := ["attack", "jump", "skill_one", "skill_two"]
 
+const JOYSTICK_BASE := preload("res://assets/ui/joystick_base.png")
+const JOYSTICK_KNOB := preload("res://assets/ui/joystick_knob.png")
+const BUTTON_TEXTURES := {"attack": preload("res://assets/ui/button_attack.png"), "jump": preload("res://assets/ui/button_jump.png"), "skill_one": preload("res://assets/ui/button_skill_1.png"), "skill_two": preload("res://assets/ui/button_skill_2.png")}
+const PAUSE_TEXTURE := preload("res://assets/ui/button_pause.png")
+
 var _left_touch := -1
 var _left_origin := Vector2.ZERO
 var _left_position := Vector2.ZERO
 var _button_owners := {"attack": -1, "jump": -1, "skill_one": -1, "skill_two": -1}
 var _pending_actions := {"attack": false, "jump": false, "skill_one": false, "skill_two": false}
 
+var _joystick_base: TextureRect
+var _joystick_knob: TextureRect
+var _button_visuals := {}
+var _pause_visual: TextureRect
+var _last_safe := Rect2()
+var _visuals_dirty := true
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process_input(true)
-	queue_redraw()
+	_build_visuals()
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
@@ -35,7 +47,8 @@ func reset_inputs() -> void:
 	for action in ACTION_ORDER:
 		_button_owners[action] = -1
 		_pending_actions[action] = false
-	queue_redraw()
+	_visuals_dirty = true
+	_update_visuals()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
@@ -45,7 +58,7 @@ func _input(event: InputEvent) -> void:
 		_handle_touch(event)
 	elif event is InputEventScreenDrag and event.index == _left_touch and not get_tree().paused:
 		_left_position = event.position
-		queue_redraw()
+		_update_visuals()
 
 func get_move_axis() -> Vector2:
 	var keyboard_axis := float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
@@ -71,7 +84,6 @@ func _handle_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
 		if event.position.distance_to(_pause_center()) <= 36.0:
 			pause_requested.emit()
-			queue_redraw()
 			return
 		if get_tree().paused:
 			return
@@ -89,7 +101,8 @@ func _handle_touch(event: InputEventScreenTouch) -> void:
 		for action in ACTION_ORDER:
 			if int(_button_owners[action]) == event.index:
 				_button_owners[action] = -1
-	queue_redraw()
+	_visuals_dirty = true
+	_update_visuals()
 
 func _claim_button(touch_index: int, position: Vector2) -> void:
 	var nearest_action := ""
@@ -105,7 +118,8 @@ func _claim_button(touch_index: int, position: Vector2) -> void:
 		return
 	_button_owners[nearest_action] = touch_index
 	_pending_actions[nearest_action] = true
-	queue_redraw()
+	_visuals_dirty = true
+	_update_visuals()
 
 func _joystick_rest_center() -> Vector2:
 	var safe := _safe_area_rect()
@@ -141,52 +155,42 @@ static func scale_safe_area(viewport_size: Vector2, display_size: Vector2i, safe
 	var scale := Vector2(viewport_size.x / float(display_size.x), viewport_size.y / float(display_size.y))
 	return Rect2(Vector2(safe_area.position) * scale, Vector2(safe_area.size) * scale)
 
-func _draw() -> void:
-	_draw_joystick()
-	_draw_action_button("attack", Color(0.72, 0.12, 0.19, 0.92), "A", "ATTACK")
-	_draw_action_button("jump", Color(0.10, 0.56, 0.72, 0.92), "J", "JUMP")
-	_draw_action_button("skill_one", Color(0.10, 0.39, 0.74, 0.92), "1", "SKILL")
-	_draw_action_button("skill_two", Color(0.40, 0.16, 0.66, 0.92), "2", "SKILL")
-	_draw_pause()
+func _build_visuals() -> void:
+	_joystick_base = _make_visual(JOYSTICK_BASE)
+	_joystick_knob = _make_visual(JOYSTICK_KNOB)
+	for action in ACTION_ORDER:
+		_button_visuals[action] = _make_visual(BUTTON_TEXTURES[action])
+	_pause_visual = _make_visual(PAUSE_TEXTURE)
+	_update_visuals()
 
-func _draw_joystick() -> void:
+func _make_visual(texture: Texture2D) -> TextureRect:
+	var visual := TextureRect.new()
+	visual.texture = texture
+	visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(visual)
+	return visual
+
+func _process(_delta: float) -> void:
+	var safe := _safe_area_rect()
+	if _visuals_dirty or safe != _last_safe:
+		_last_safe = safe
+		_visuals_dirty = false
+		_update_visuals()
+
+func _update_visuals() -> void:
+	if not is_instance_valid(_joystick_base):
+		return
 	var center := _joystick_rest_center()
 	if _left_touch >= 0:
 		center = _left_origin
-	var active := _left_touch >= 0
-	var outer_alpha := 0.78 if active else 0.48
-	draw_circle(center, JOYSTICK_RADIUS + 10.0, Color(0.03, 0.045, 0.075, outer_alpha * 0.45))
-	draw_circle(center, JOYSTICK_RADIUS, Color(0.045, 0.065, 0.105, outer_alpha))
-	draw_arc(center, JOYSTICK_RADIUS, 0.0, TAU, 48, Color(0.78, 0.66, 0.39, 0.86 if active else 0.58), 3.0)
-	var directions: Array[Vector2] = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]
-	for direction in directions:
-		var inner: Vector2 = center + direction * 50.0
-		var outer: Vector2 = center + direction * 59.0
-		draw_line(inner, outer, Color(0.75, 0.79, 0.86, 0.34), 2.0)
+	_joystick_base.position = center - Vector2(88.0, 88.0)
 	var knob_offset := Vector2.ZERO
-	if active:
+	if _left_touch >= 0:
 		knob_offset = (_left_position - _left_origin).limit_length(JOYSTICK_RADIUS - 16.0)
-	var knob_center := center + knob_offset
-	draw_circle(knob_center, JOYSTICK_KNOB_RADIUS + 5.0, Color(0.02, 0.03, 0.05, 0.5))
-	draw_circle(knob_center, JOYSTICK_KNOB_RADIUS, Color(0.64, 0.53, 0.32, 0.92 if active else 0.72))
-	draw_arc(knob_center, JOYSTICK_KNOB_RADIUS, 0.0, TAU, 32, Color(0.95, 0.82, 0.52, 0.72), 2.0)
-
-func _draw_action_button(action: String, color: Color, label: String, caption: String) -> void:
-	var center := _button_center(action)
-	var pressed := int(_button_owners[action]) >= 0
-	var radius := BUTTON_RADIUS * (0.92 if pressed else 1.0)
-	draw_circle(center, BUTTON_RADIUS + 8.0, Color(color.r, color.g, color.b, 0.12))
-	draw_circle(center, radius, color.lightened(0.18) if pressed else color)
-	draw_circle(center + Vector2(0.0, 7.0), radius * 0.82, Color(0.02, 0.025, 0.045, 0.16))
-	draw_arc(center, BUTTON_RADIUS, 0.0, TAU, 40, Color(0.94, 0.80, 0.48, 0.95), 3.0)
-	var label_size := ThemeDB.fallback_font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 25)
-	draw_string(ThemeDB.fallback_font, center + Vector2(-label_size.x * 0.5, label_size.y * 0.35), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color.WHITE)
-	var caption_size := ThemeDB.fallback_font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 9)
-	draw_string(ThemeDB.fallback_font, center + Vector2(-caption_size.x * 0.5, BUTTON_RADIUS + 16.0), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.82, 0.85, 0.90, 0.68))
-
-func _draw_pause() -> void:
-	var center := _pause_center()
-	draw_circle(center, 28.0, Color(0.02, 0.03, 0.055, 0.78))
-	draw_arc(center, 27.0, 0.0, TAU, 32, Color(0.78, 0.82, 0.90, 0.80), 2.0)
-	draw_rect(Rect2(center + Vector2(-7.0, -9.0), Vector2(4.0, 18.0)), Color.WHITE)
-	draw_rect(Rect2(center + Vector2(3.0, -9.0), Vector2(4.0, 18.0)), Color.WHITE)
+	_joystick_knob.position = center + knob_offset - Vector2(36.0, 36.0)
+	for action in ACTION_ORDER:
+		var visual: TextureRect = _button_visuals[action]
+		var pressed := int(_button_owners[action]) >= 0
+		visual.position = _button_center(action) - Vector2(48.0, 48.0)
+		visual.modulate = Color(1.25, 1.25, 1.25, 1.0) if pressed else Color.WHITE
+	_pause_visual.position = _pause_center() - Vector2(32.0, 32.0)

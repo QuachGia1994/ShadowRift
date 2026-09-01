@@ -12,7 +12,7 @@
 
 ## World and combat
 
-- One procedural multi-layer TileMapLayer zone, one spike hazard, and two one-way platforms.
+- One multi-layer TileMapLayer zone built from the imported rift TileSet, one spike hazard, and two one-way platforms.
 - Warden and Wraith enemies patrol, acquire, attack, receive knockback, and die on Android, iOS, and editor builds using the same local FSM.
 - One single-phase Rift Warden boss chases, winds up, strikes, receives knockback, and dies using the same local FSM on every platform.
 - `CombatAuthority` evaluates canonical melee/projectile/enemy/hazard damage locally; there is no network round trip in the frame-critical combat loop.

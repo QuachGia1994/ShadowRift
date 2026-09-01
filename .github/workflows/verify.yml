@@ -26,7 +26,16 @@ jobs:
           include-templates: true
       - name: Verify source contract
         run: python tools/verify_project.py
+      - name: Generate mobile texture memory report
+        run: |
+          python tools/report_mobile_memory.py
+          cat build/reports/mobile-memory-report.txt
       - name: Import and parse project
         run: godot --headless --path . --editor --quit
       - name: Run GDScript behavior tests
         run: godot --headless --path . --script res://tests/test_runner.gd
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mobile-memory-report
+          path: build/reports/mobile-memory-report.txt
+          if-no-files-found: error

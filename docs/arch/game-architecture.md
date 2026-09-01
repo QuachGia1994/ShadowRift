@@ -24,5 +24,5 @@ flowchart TD
 - `PlayerProfile` recomputes derived stats from level and the weapon/armor catalog. Displayed ATK/DEF are never loaded directly from save data.
 - `SaveRepository` owns local single-player persistence and validates schema, ranges, equipment IDs, canonical stat limits, and checksum before restoring progress.
 - `ReusablePool` owns projectile and damage-number reuse; `PerformanceBudget` keeps the v1 draw-call budget visible.
-- `ZoneBuilder` owns the procedural TileSet, three TileMapLayer nodes, collision, hazard, and one-way platforms.
+- `ZoneBuilder` owns the imported rift TileSet resource, three TileMapLayer nodes, collision, hazard, and one-way platforms.
 - `GameHud` and `MobileControls` map platform safe-area pixels into the stretched Godot viewport so notch/cutout/gesture insets do not own interactive controls.

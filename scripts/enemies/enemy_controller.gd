@@ -6,6 +6,9 @@ signal defeated(exp_reward: int, gold_reward: int)
 enum Kind { WARDEN, WRAITH }
 enum State { PATROL, AGGRO, ATTACK, HURT, DEATH }
 
+const WARDEN_FRAMES := preload("res://assets/sprites/enemies/warden_frames.tres")
+const WRAITH_FRAMES := preload("res://assets/sprites/enemies/wraith_frames.tres")
+
 var kind := Kind.WARDEN
 var state := State.PATROL
 var target: Hero
@@ -16,6 +19,8 @@ var _attack_time := 0.0
 var _hurt_time := 0.0
 var _health: HealthComponent
 var _hitbox: Hitbox
+var _sprite: AnimatedSprite2D
+var _facing := 1.0
 
 func configure(enemy_kind: Kind, hero_target: Hero) -> void:
 	kind = enemy_kind
@@ -25,7 +30,7 @@ func _ready() -> void:
 	_anchor_x = global_position.x
 	_add_body_shape()
 	_add_combat_nodes()
-	queue_redraw()
+	_add_sprite()
 
 func _physics_process(delta: float) -> void:
 	_health.tick(delta)
@@ -46,7 +51,8 @@ func _physics_process(delta: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 500.0 * delta)
 	move_and_slide()
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 60) % 2 == 0
-	queue_redraw()
+	_sprite.flip_h = _facing < 0.0
+	_apply_animation()
 
 func get_attack_power() -> int:
 	return 17 if kind == Kind.WARDEN else 13
@@ -63,6 +69,7 @@ func _update_patrol(_delta: float) -> void:
 		return
 	if absf(global_position.x - _anchor_x) > 105.0:
 		_patrol_direction = -signf(global_position.x - _anchor_x)
+	_facing = _patrol_direction
 	velocity.x = _patrol_direction * _move_speed() * 0.42
 
 func _update_aggro(_delta: float) -> void:
@@ -74,6 +81,8 @@ func _update_aggro(_delta: float) -> void:
 		state = State.PATROL
 		return
 	var direction := signf(target.global_position.x - global_position.x)
+	if direction != 0.0:
+		_facing = direction
 	if distance <= _attack_range() and _attack_cooldown <= 0.0:
 		_start_attack(direction)
 		return
@@ -83,6 +92,7 @@ func _update_aggro(_delta: float) -> void:
 
 func _start_attack(direction: float) -> void:
 	state = State.ATTACK
+	_facing = direction if direction != 0.0 else _facing
 	_attack_time = 0.34 if kind == Kind.WARDEN else 0.25
 	_attack_cooldown = 1.0 if kind == Kind.WARDEN else 0.72
 	velocity.x = direction * (80.0 if kind == Kind.WARDEN else 160.0)
@@ -147,21 +157,37 @@ func _add_combat_nodes() -> void:
 	_hitbox.configure(self, Vector2(42.0, 38.0))
 	add_child(_hitbox)
 
-func _draw() -> void:
-	var pulse := (sin(float(Time.get_ticks_msec()) * 0.008) + 1.0) * 0.5
+func _add_sprite() -> void:
+	_sprite = AnimatedSprite2D.new()
+	_sprite.sprite_frames = WARDEN_FRAMES if kind == Kind.WARDEN else WRAITH_FRAMES
+	_sprite.centered = false
+	_sprite.offset = Vector2(-32.0, -42.0)
+	add_child(_sprite)
+	_sprite.play(&"patrol" if kind == Kind.WARDEN else &"hover")
+
+func _apply_animation() -> void:
+	var anim := &"patrol"
 	if kind == Kind.WARDEN:
-		draw_colored_polygon(PackedVector2Array([Vector2(-24.0, 19.0), Vector2(24.0, 19.0), Vector2(17.0, 24.0), Vector2(-17.0, 24.0)]), Color(0.0, 0.0, 0.0, 0.28))
-		draw_colored_polygon(PackedVector2Array([Vector2(-17.0, -27.0), Vector2(17.0, -27.0), Vector2(20.0, 14.0), Vector2(-20.0, 14.0)]), Color(0.08, 0.10, 0.15))
-		draw_colored_polygon(PackedVector2Array([Vector2(-13.0, -24.0), Vector2(13.0, -24.0), Vector2(15.0, 12.0), Vector2(-15.0, 12.0)]), Color(0.23, 0.25, 0.31))
-		draw_rect(Rect2(-19.0, -38.0, 38.0, 11.0), Color(0.42, 0.08, 0.13))
-		draw_colored_polygon(PackedVector2Array([Vector2(-14.0, -39.0), Vector2(0.0, -49.0), Vector2(14.0, -39.0)]), Color(0.16, 0.17, 0.22))
-		draw_circle(Vector2(7.0, -32.0), 2.4 + pulse * 0.7, Color(0.98, 0.18, 0.22, 0.95))
-		draw_line(Vector2(-25.0, -14.0), Vector2(24.0, 13.0), Color(0.74, 0.78, 0.82), 5.0)
-		draw_line(Vector2(-27.0, -16.0), Vector2(-20.0, -20.0), Color(0.93, 0.79, 0.48), 3.0)
+		match state:
+			State.PATROL:
+				anim = &"patrol"
+			State.AGGRO:
+				anim = &"aggro"
+			State.ATTACK:
+				anim = &"attack"
+			State.HURT:
+				anim = &"hurt"
+			State.DEATH:
+				anim = &"death"
 	else:
-		var float_offset := sin(float(Time.get_ticks_msec()) * 0.006) * 3.0
-		draw_circle(Vector2(0.0, 13.0), 25.0, Color(0.23, 0.68, 0.78, 0.035 + pulse * 0.025))
-		draw_colored_polygon(PackedVector2Array([Vector2(0.0, -42.0 + float_offset), Vector2(19.0, -13.0 + float_offset), Vector2(13.0, 20.0 + float_offset), Vector2(0.0, 14.0 + float_offset), Vector2(-15.0, 21.0 + float_offset), Vector2(-20.0, -13.0 + float_offset)]), Color(0.24, 0.11, 0.35, 0.94))
-		draw_arc(Vector2(0.0, -9.0 + float_offset), 20.0, 0.0, TAU, 24, Color(0.30, 0.78, 0.88, 0.45 + pulse * 0.18), 3.0)
-		draw_circle(Vector2(5.0, -22.0 + float_offset), 3.0, Color(0.48, 0.94, 1.0))
-		draw_circle(Vector2(5.0, -22.0 + float_offset), 7.0, Color(0.36, 0.82, 0.94, 0.10))
+		match state:
+			State.PATROL, State.AGGRO:
+				anim = &"hover"
+			State.ATTACK:
+				anim = &"dash_attack"
+			State.HURT:
+				anim = &"hurt"
+			State.DEATH:
+				anim = &"death"
+	if _sprite.animation != anim:
+		_sprite.play(anim)

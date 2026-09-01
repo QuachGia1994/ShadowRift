@@ -36,10 +36,11 @@ func _run() -> void:
 	_test_combat_uses_canonical_damage()
 	_test_pool_reuses_items()
 	_test_performance_contract()
+	_test_production_resources_load()
 	await _test_full_scene_boot_and_pause()
 	await process_frame
 	if _failures == 0:
-		print("PASS: 12 behavior tests")
+		print("PASS: 13 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -240,6 +241,31 @@ func _test_performance_contract() -> void:
 	_expect(Engine.max_fps == 60, "runtime keeps the 60 FPS cap")
 	_expect(PerformanceBudget.DRAW_CALL_BUDGET == 50, "draw-call budget remains capped at 50")
 
+func _test_production_resources_load() -> void:
+	var hero_frames := load("res://assets/sprites/hero/hero_frames.tres") as SpriteFrames
+	_expect(hero_frames != null, "hero SpriteFrames resource loads")
+	for anim in ["idle", "move", "jump", "attack1", "attack2", "skill_one", "skill_two", "hurt", "death"]:
+		_expect(hero_frames != null and hero_frames.has_animation(StringName(anim)), "hero animation %s exists" % anim)
+	var warden_frames := load("res://assets/sprites/enemies/warden_frames.tres") as SpriteFrames
+	_expect(warden_frames != null, "warden SpriteFrames resource loads")
+	for anim in ["patrol", "aggro", "attack", "hurt", "death"]:
+		_expect(warden_frames != null and warden_frames.has_animation(StringName(anim)), "warden animation %s exists" % anim)
+	var wraith_frames := load("res://assets/sprites/enemies/wraith_frames.tres") as SpriteFrames
+	_expect(wraith_frames != null, "wraith SpriteFrames resource loads")
+	for anim in ["hover", "dash_attack", "hurt", "death"]:
+		_expect(wraith_frames != null and wraith_frames.has_animation(StringName(anim)), "wraith animation %s exists" % anim)
+	var boss_frames := load("res://assets/sprites/enemies/rift_warden_frames.tres") as SpriteFrames
+	_expect(boss_frames != null, "boss SpriteFrames resource loads")
+	for anim in ["watch", "chase", "windup", "strike", "hurt", "death"]:
+		_expect(boss_frames != null and boss_frames.has_animation(StringName(anim)), "boss animation %s exists" % anim)
+	var tile_set := load("res://assets/environment/rift_zone_tileset.tres") as TileSet
+	_expect(tile_set != null and tile_set.has_source(0), "rift tileset loads with atlas source")
+	if tile_set != null and tile_set.has_source(0):
+		var source := tile_set.get_source(0) as TileSetAtlasSource
+		_expect(source != null and source.get_tiles_count() == 3, "rift tileset exposes three tiles")
+	for path in ["res://assets/environment/bg_sky.png", "res://assets/environment/bg_ruins.png", "res://assets/environment/bg_foreground_mist.png", "res://assets/environment/platform_rune.png", "res://assets/environment/hazard_spikes.png", "res://assets/ui/hud_frame.png", "res://assets/ui/bar_under.png", "res://assets/ui/hp_fill.png", "res://assets/ui/mp_fill.png", "res://assets/ui/exp_fill.png", "res://assets/ui/boss_fill.png", "res://assets/ui/icon_rust_blade.png", "res://assets/ui/icon_rift_saber.png", "res://assets/ui/icon_ash_vest.png", "res://assets/ui/icon_warden_mail.png", "res://assets/ui/joystick_base.png", "res://assets/ui/joystick_knob.png", "res://assets/ui/button_attack.png", "res://assets/ui/button_jump.png", "res://assets/ui/button_skill_1.png", "res://assets/ui/button_skill_2.png", "res://assets/ui/button_pause.png", "res://assets/vfx/slash_1.png", "res://assets/vfx/slash_2.png", "res://assets/vfx/skill_one_slash.png", "res://assets/vfx/skill_two_projectile.png", "res://assets/vfx/hit_spark.png", "res://assets/vfx/dust.png"]:
+		_expect(load(path) is Texture2D, "production texture loads: %s" % path)
+
 func _test_full_scene_boot_and_pause() -> void:
 	var packed := load("res://scenes/game.tscn") as PackedScene
 	_expect(packed != null, "main game scene loads")
@@ -253,6 +279,21 @@ func _test_full_scene_boot_and_pause() -> void:
 	_expect(is_instance_valid(game._hud), "game scene creates HUD")
 	_expect(is_instance_valid(game._controls), "game scene creates mobile controls")
 	_expect(game._controls.process_mode == Node.PROCESS_MODE_ALWAYS, "pause control remains responsive while paused")
+	var hud_bars := 0
+	for child in game._hud.get_children():
+		if child is TextureProgressBar:
+			hud_bars += 1
+	_expect(hud_bars >= 4, "HUD presents HP/MP/EXP/boss bars as native TextureProgressBar controls")
+	var control_visuals := 0
+	for child in game._controls.get_children():
+		if child is TextureRect:
+			control_visuals += 1
+	_expect(control_visuals >= 6, "mobile controls present joystick/buttons/pause as texture visuals")
+	var hero_sprite: AnimatedSprite2D = null
+	for child in game._hero.get_children():
+		if child is AnimatedSprite2D:
+			hero_sprite = child
+	_expect(hero_sprite != null and hero_sprite.sprite_frames != null, "hero renders through AnimatedSprite2D sprite frames")
 	game._controls._left_touch = 9
 	game._toggle_user_pause()
 	_expect(paused and game._hud._paused, "pause freezes tree and shows overlay")

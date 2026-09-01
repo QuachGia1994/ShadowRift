@@ -6,6 +6,9 @@ signal defeated(exp_reward: int, gold_reward: int)
 
 enum State { WATCH, CHASE, WINDUP, STRIKE, HURT, DEATH }
 
+const BOSS_FRAMES := preload("res://assets/sprites/enemies/rift_warden_frames.tres")
+const STRIKE_VFX := preload("res://assets/vfx/slash_2.png")
+
 var state := State.WATCH
 var target: Hero
 var _health: HealthComponent
@@ -13,6 +16,7 @@ var _hitbox: Hitbox
 var _state_time := 0.0
 var _attack_cooldown := 0.0
 var _attack_direction := -1.0
+var _sprite: AnimatedSprite2D
 
 func configure(hero_target: Hero) -> void:
 	target = hero_target
@@ -20,7 +24,7 @@ func configure(hero_target: Hero) -> void:
 func _ready() -> void:
 	_add_body_shape()
 	_add_combat_nodes()
-	queue_redraw()
+	_add_sprite()
 
 func _physics_process(delta: float) -> void:
 	_health.tick(delta)
@@ -50,7 +54,8 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0.0
 	move_and_slide()
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 65) % 2 == 0
-	queue_redraw()
+	_sprite.flip_h = _attack_direction < 0.0
+	_apply_animation()
 
 func get_attack_power() -> int:
 	return 25
@@ -83,6 +88,7 @@ func _start_strike() -> void:
 	_attack_cooldown = 1.35
 	velocity.x = _attack_direction * 265.0
 	_hitbox.activate(&"boss_basic", 0.26, Vector2(_attack_direction * 45.0, -3.0))
+	_spawn_strike_vfx()
 
 func _distance_to_target() -> float:
 	return global_position.distance_to(target.global_position) if is_instance_valid(target) else INF
@@ -130,20 +136,41 @@ func _add_combat_nodes() -> void:
 	_hitbox.configure(self, Vector2(62.0, 58.0))
 	add_child(_hitbox)
 
-func _draw() -> void:
-	var pulse := (sin(float(Time.get_ticks_msec()) * 0.006) + 1.0) * 0.5
-	draw_colored_polygon(PackedVector2Array([Vector2(-42.0, 27.0), Vector2(42.0, 27.0), Vector2(30.0, 34.0), Vector2(-30.0, 34.0)]), Color(0.0, 0.0, 0.0, 0.34))
-	draw_circle(Vector2.ZERO, 54.0, Color(0.62, 0.08, 0.20, 0.025 + pulse * 0.025))
-	draw_colored_polygon(PackedVector2Array([Vector2(-31.0, 23.0), Vector2(-25.0, -39.0), Vector2(0.0, -59.0), Vector2(27.0, -38.0), Vector2(32.0, 23.0)]), Color(0.10, 0.075, 0.14))
-	draw_colored_polygon(PackedVector2Array([Vector2(-25.0, 18.0), Vector2(-19.0, -34.0), Vector2(0.0, -49.0), Vector2(20.0, -33.0), Vector2(26.0, 18.0)]), Color(0.20, 0.11, 0.19))
-	draw_colored_polygon(PackedVector2Array([Vector2(-24.0, -37.0), Vector2(-47.0, -58.0), Vector2(-21.0, -50.0)]), Color(0.46, 0.09, 0.16))
-	draw_colored_polygon(PackedVector2Array([Vector2(24.0, -37.0), Vector2(47.0, -58.0), Vector2(21.0, -50.0)]), Color(0.46, 0.09, 0.16))
-	draw_circle(Vector2(-8.0, -30.0), 3.2 + pulse * 0.8, Color(0.98, 0.12, 0.24))
-	draw_circle(Vector2(8.0, -30.0), 3.2 + pulse * 0.8, Color(0.98, 0.12, 0.24))
-	draw_line(Vector2(-23.0, -4.0), Vector2(-38.0, 17.0), Color(0.52, 0.16, 0.22), 7.0)
-	draw_line(Vector2(23.0, -4.0), Vector2(38.0, 17.0), Color(0.52, 0.16, 0.22), 7.0)
-	if state == State.WINDUP:
-		draw_arc(Vector2.ZERO, 48.0, 0.0, TAU, 36, Color(0.90, 0.12, 0.28, 0.82), 5.0)
-		draw_arc(Vector2.ZERO, 58.0, 0.0, TAU, 36, Color(0.70, 0.18, 0.50, 0.25), 3.0)
-	elif state == State.STRIKE:
-		draw_arc(Vector2(_attack_direction * 24.0, -4.0), 42.0, -1.1 if _attack_direction > 0.0 else 2.0, 1.15 if _attack_direction > 0.0 else 4.3, 24, Color(1.0, 0.28, 0.34, 0.82), 7.0)
+func _add_sprite() -> void:
+	_sprite = AnimatedSprite2D.new()
+	_sprite.sprite_frames = BOSS_FRAMES
+	_sprite.centered = false
+	_sprite.offset = Vector2(-64.0, -103.0)
+	add_child(_sprite)
+	_sprite.play(&"watch")
+
+func _apply_animation() -> void:
+	var anim := &"watch"
+	match state:
+		State.WATCH:
+			anim = &"watch"
+		State.CHASE:
+			anim = &"chase"
+		State.WINDUP:
+			anim = &"windup"
+		State.STRIKE:
+			anim = &"strike"
+		State.HURT:
+			anim = &"hurt"
+		State.DEATH:
+			anim = &"death"
+	if _sprite.animation != anim:
+		_sprite.play(anim)
+
+func _spawn_strike_vfx() -> void:
+	var vfx := Sprite2D.new()
+	vfx.texture = STRIKE_VFX
+	vfx.position = Vector2(_attack_direction * 40.0, -6.0)
+	vfx.flip_h = _attack_direction < 0.0
+	vfx.z_index = 1
+	add_child(vfx)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(vfx, "modulate:a", 0.0, 0.3)
+	tween.tween_property(vfx, "scale", Vector2(1.5, 1.5), 0.3)
+	tween.chain().tween_callback(vfx.queue_free)
