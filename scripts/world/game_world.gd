@@ -12,6 +12,8 @@ var _server_authority_enabled := OS.has_feature("server_authoritative")
 var _server_client: ServerAuthorityClient
 var _server_enemies: Dictionary = {}
 var _hud: GameHud
+var _controls: MobileControls
+var _paused_by_user := false
 
 func _ready() -> void:
 	_create_zone()
@@ -61,10 +63,11 @@ func _create_controls() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 20
 	add_child(layer)
-	var controls := MobileControls.new()
-	controls.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	controls.add_to_group("mobile_controls")
-	layer.add_child(controls)
+	_controls = MobileControls.new()
+	_controls.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_controls.add_to_group("mobile_controls")
+	_controls.pause_requested.connect(_toggle_user_pause)
+	layer.add_child(_controls)
 
 func _create_hero() -> void:
 	_hero = Hero.new()
@@ -108,6 +111,7 @@ func _create_hud() -> void:
 
 func _create_server_authority() -> void:
 	_server_client = ServerAuthorityClient.new()
+	_server_client.process_mode = Node.PROCESS_MODE_ALWAYS
 	_server_client.snapshot_received.connect(_apply_server_snapshot)
 	_server_client.server_events_received.connect(_apply_server_events)
 	_server_client.connection_state_changed.connect(_on_server_connection_changed)
@@ -152,6 +156,14 @@ func _on_server_connection_changed(state: String, detail: String) -> void:
 	if is_instance_valid(_hud):
 		_hud.set_network_status(state, detail)
 
+func _toggle_user_pause() -> void:
+	_paused_by_user = not _paused_by_user
+	if _server_authority_enabled and is_instance_valid(_server_client):
+		_server_client.set_move_direction(0)
+	if is_instance_valid(_hud):
+		_hud.set_pause_state(_paused_by_user)
+	get_tree().paused = _paused_by_user
+
 func _load_progress() -> void:
 	var result := _save_repository.load_game()
 	if result.ok:
@@ -166,6 +178,10 @@ func _save_progress() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
 		_save_progress()
+
+func _exit_tree() -> void:
+	if _paused_by_user and is_instance_valid(get_tree()):
+		get_tree().paused = false
 
 func _create_zone() -> void:
 	var zone := ZoneBuilder.new()

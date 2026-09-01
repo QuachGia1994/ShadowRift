@@ -2,26 +2,33 @@
 
 ## Status
 
-| Milestone | Status | Evidence | Remaining gate |
-| --- | --- | --- | --- |
-| 1. Player FSM and input | PARTIAL | Source and static checks | Godot runtime and touch-device feel |
-| 2. Combat | PARTIAL | Source and behavior tests authored | Run headless tests in Godot |
-| 3. Zone | PARTIAL | Three TileMapLayer nodes, hazard, platforms | Render and collision check |
-| 4. Enemies | PARTIAL | Two FSM archetypes implemented | Runtime tuning |
-| 5. Boss and HUD | PARTIAL | Single-phase boss and HUD implemented | Layout/device-safe-area check |
-| 6. Inventory | PARTIAL | Two slots and canonical recompute implemented | Touch equip check |
-| 7. Save | PARTIAL | Checksum, tamper test, and invariants authored | Godot filesystem test |
-| 8. Performance | PARTIAL | Pools, 60 FPS lock, 50 draw-call monitor | Profile on two real devices |
-| 9. Mobile exports | PARTIAL | Android CI artifact produced and launched on a real phone; iOS export pipeline repaired through project-only Xcode packaging | Fresh landscape artifact/device verification; iOS artifact observation |
-| 10. Authority server | PASS | 8 Node tests and live Cloudflare Durable Object Worker | Device/network soak test |
-| 11. Protected client | PARTIAL | Intent-only protocol, resumable token, fail-closed mobile feature | Godot 4.7.2 parse/runtime CI |
-| 12. Public mobile CI | PARTIAL | Verify workflow green in repair runs; Android mobile build produced artifact; unsigned iOS pipeline repaired iteratively | User-observed iOS artifact success |
-| 13. Canonical workspace | PASS | Repository canonical at `D:\LacViet\ShadowRift` with history intact | — |
-| 14. Public repository | PASS | `main` and milestone branches pushed to public origin | — |
-| 15. Live authority | PASS | Deployed Worker: health 200, session creation 201 observed | Device/network soak test |
-| 16. Release gate & server E2E | PARTIAL | 12 Worker/DO integration tests in workerd, bounded fail-closed reconnect, static contract checks, Verify runs unit + integration + TypeScript | Remaining real-device behavior gates |
-| 17. Landscape device stabilization | PARTIAL | Android real-device launch reaches SERVER ONLINE at 60 FPS; source locks landscape and uses expand stretch; verifier guards both settings | Fresh artifact must confirm full-screen landscape plus touch/combat/resume/reconnect behavior |
+M18 is the single final milestone. It absorbs every remaining PARTIAL gate from M1–M17 so there is no M19+ roadmap for v1.
 
-## Next action
+| Milestone | Status | Evidence / closure path |
+| --- | --- | --- |
+| 1. Player FSM and input | ABSORBED → M18 | FSM + two-hit combo runtime tests; isolated multi-touch runtime test; final touch feel remains device acceptance. |
+| 2. Combat | ABSORBED → M18 | Canonical damage behavior test remains in the Godot suite. |
+| 3. Zone | ABSORBED → M18 | Runtime structure test asserts three TileMapLayer nodes, hazard, and both one-way platforms. |
+| 4. Enemies | ABSORBED → M18 | Warden and boss FSM smoke tests execute in Godot CI; tuning feel remains device acceptance. |
+| 5. Boss and HUD | ABSORBED → M18 | Full-scene boot test + pause overlay contract + landscape device acceptance. |
+| 6. Inventory | ABSORBED → M18 | Hero equipment cycling + canonical stat test. |
+| 7. Save | ABSORBED → M18 | Real `user://` filesystem round-trip and checksum tamper rejection test. |
+| 8. Performance | ABSORBED → M18 | Pool reuse + 60 FPS cap + 50 draw-call budget contracts; sustained FPS/thermals remain device acceptance. |
+| 9. Mobile exports | ABSORBED → M18 | Android artifact previously launched; final landscape Android + unsigned iOS artifacts are triggered by M18. |
+| 10. Authority server | PASS | Unit tests + Worker/Durable Object E2E + live authority health/session evidence. |
+| 11. Protected client | ABSORBED → M18 | Runtime bounded reconnect, resume, fail-closed intent clearing, and pause zero-movement contracts. |
+| 12. Public mobile CI | ABSORBED → M18 | Verify + Android + unsigned iOS workflows; M18 produces the final trigger. |
+| 13. Canonical workspace | PASS | Canonical repo at `D:\LacViet\ShadowRift`. |
+| 14. Public repository | PASS | Public origin with milestone branches and `main`. |
+| 15. Live authority | PASS | Live Worker health/session creation previously observed. |
+| 16. Release gate & server E2E | ABSORBED → M18 | 12 Worker/DO integration tests + expanded Godot runtime suite. |
+| 17. Landscape device stabilization | ABSORBED → M18 | Landscape lock + `expand` stretch guarded statically; final visual fit is device acceptance. |
+| 18. V1 Final Closeout | SOURCE/CI GATE | One final source/CI milestone: pause/resume, 14-test Godot behavior suite, static contracts, existing server E2E, final mobile artifacts. No M19+ planned for v1. |
 
-M17 is the active milestone. The first real-device Android launch proves the APK starts, renders the HUD/world, reaches the live authority (`SERVER ONLINE`), and reports 60 FPS, but it exposed a portrait/letterbox defect. The source now explicitly locks mobile orientation to landscape and uses Godot 4.7 `expand` stretch for wide screens. Build fresh Android/iOS artifacts and keep platform status PARTIAL until the user observes full-screen landscape launch, input, combat, server resume, pause/resume, disconnect lock, reconnect recovery, and sustained 60 FPS on-device.
+## M18 automated gate
+
+`Verify` must run the static source contract, Godot import/parse, 14 GDScript behavior tests, server unit tests, Worker/Durable Object integration tests, and TypeScript type-check. `Mobile builds` must produce the Android debug APK and unsigned iOS IPA artifact. Source/CI work is not expanded beyond v1.
+
+## Final external acceptance
+
+These observations intrinsically require real hardware and remain outside automated truth claims: full-screen landscape/safe-area visual fit, physical multi-touch feel, combat/tuning feel, pause/resume feel, disconnect/reconnect during a real network transition, sustained FPS/device thermals, final Android install/launch, and unsigned iOS artifact/device-side validation where applicable. Once those are observed, v1 has no remaining milestone.

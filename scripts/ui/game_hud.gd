@@ -8,6 +8,7 @@ var _boss_current := 0
 var _boss_maximum := 1
 var _network_state := "LOCAL"
 var _network_detail := "editor_debug"
+var _paused := false
 
 func configure(hero: Hero, boss: BossController) -> void:
 	_hero = hero
@@ -20,12 +21,13 @@ func configure(hero: Hero, boss: BossController) -> void:
 	_boss_maximum = boss_health.y
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process_input(true)
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
-	if not event is InputEventScreenTouch or not event.pressed or not is_instance_valid(_hero):
+	if _paused or not event is InputEventScreenTouch or not event.pressed or not is_instance_valid(_hero):
 		return
 	if Rect2(26.0, 126.0, 190.0, 30.0).has_point(event.position):
 		_hero.cycle_equipment(&"weapon")
@@ -45,6 +47,10 @@ func _on_boss_health_changed(current: int, maximum: int) -> void:
 func set_network_status(state: String, detail: String) -> void:
 	_network_state = state
 	_network_detail = detail
+	queue_redraw()
+
+func set_pause_state(paused: bool) -> void:
+	_paused = paused
 	queue_redraw()
 
 func _draw() -> void:
@@ -72,6 +78,10 @@ func _draw() -> void:
 			draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 175.0, size.y * 0.5 + 20.0), _network_detail, HORIZONTAL_ALIGNMENT_LEFT, 350.0, 12, Color(0.78, 0.78, 0.82))
 	if is_instance_valid(_boss) and _boss_current > 0:
 		_draw_bar(Rect2(size.x * 0.5 - 180.0, 54.0, 360.0, 18.0), _boss_current, _boss_maximum, Color(0.58, 0.06, 0.14), "RIFT WARDEN")
+	if _paused:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.01, 0.015, 0.03, 0.74))
+		draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 54.0, size.y * 0.5 - 6.0), "PAUSED", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
+		draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 105.0, size.y * 0.5 + 24.0), "Tap || to resume", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.80, 0.84, 0.90))
 
 func _draw_bar(rect: Rect2, current: int, maximum: int, color: Color, label: String) -> void:
 	var ratio := clampf(float(current) / float(maxi(1, maximum)), 0.0, 1.0)

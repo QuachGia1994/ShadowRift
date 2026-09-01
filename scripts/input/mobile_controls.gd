@@ -1,6 +1,8 @@
 extends Control
 class_name MobileControls
 
+signal pause_requested
+
 const LEFT_ZONE_RATIO := 0.46
 const JOYSTICK_RADIUS := 62.0
 const BUTTON_RADIUS := 42.0
@@ -12,14 +14,18 @@ var _button_owners := {"attack": -1, "skill_one": -1, "skill_two": -1}
 var _pending_actions := {"attack": false, "skill_one": false, "skill_two": false}
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process_input(true)
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		pause_requested.emit()
+		return
 	if event is InputEventScreenTouch:
 		_handle_touch(event)
-	elif event is InputEventScreenDrag and event.index == _left_touch:
+	elif event is InputEventScreenDrag and event.index == _left_touch and not get_tree().paused:
 		_left_position = event.position
 		queue_redraw()
 
@@ -41,6 +47,12 @@ func consume_action(action: StringName) -> bool:
 
 func _handle_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
+		if event.position.distance_to(_pause_center()) <= 34.0:
+			pause_requested.emit()
+			queue_redraw()
+			return
+		if get_tree().paused:
+			return
 		if event.position.x < size.x * LEFT_ZONE_RATIO and _left_touch < 0:
 			_left_touch = event.index
 			_left_origin = event.position
@@ -73,6 +85,9 @@ func _button_center(action: String) -> Vector2:
 		_:
 			return Vector2(size.x - 245.0, size.y - 65.0)
 
+func _pause_center() -> Vector2:
+	return Vector2(size.x - 50.0, 92.0)
+
 func _draw() -> void:
 	var joystick_center := _left_origin if _left_touch >= 0 else Vector2(105.0, size.y - 105.0)
 	draw_circle(joystick_center, JOYSTICK_RADIUS, Color(0.08, 0.11, 0.18, 0.62))
@@ -84,6 +99,11 @@ func _draw() -> void:
 	_draw_button("attack", Color(0.68, 0.13, 0.16, 0.85), "A")
 	_draw_button("skill_one", Color(0.10, 0.42, 0.76, 0.85), "1")
 	_draw_button("skill_two", Color(0.39, 0.18, 0.66, 0.85), "2")
+	var pause_center := _pause_center()
+	draw_circle(pause_center, 24.0, Color(0.05, 0.07, 0.12, 0.88))
+	draw_arc(pause_center, 24.0, 0.0, TAU, 28, Color(0.82, 0.84, 0.88, 0.85), 2.0)
+	draw_rect(Rect2(pause_center + Vector2(-7.0, -8.0), Vector2(4.0, 16.0)), Color.WHITE)
+	draw_rect(Rect2(pause_center + Vector2(3.0, -8.0), Vector2(4.0, 16.0)), Color.WHITE)
 
 func _draw_button(action: String, color: Color, label: String) -> void:
 	var center := _button_center(action)
