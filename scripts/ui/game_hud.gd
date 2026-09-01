@@ -19,7 +19,16 @@ func configure(hero: Hero, boss: BossController) -> void:
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_process_input(true)
 	queue_redraw()
+
+func _input(event: InputEvent) -> void:
+	if not event is InputEventScreenTouch or not event.pressed or not is_instance_valid(_hero):
+		return
+	if Rect2(26.0, 126.0, 190.0, 30.0).has_point(event.position):
+		_hero.cycle_equipment(&"weapon")
+	elif Rect2(222.0, 126.0, 190.0, 30.0).has_point(event.position):
+		_hero.cycle_equipment(&"armor")
 
 func _process(_delta: float) -> void:
 	queue_redraw()
@@ -42,6 +51,9 @@ func _draw() -> void:
 	_draw_bar(Rect2(92.0, 55.0, 245.0, 18.0), int(_hero_snapshot.mana), int(_hero_snapshot.max_mana), Color(0.08, 0.48, 0.82), "MP")
 	_draw_bar(Rect2(92.0, 79.0, 245.0, 14.0), int(_hero_snapshot.exp), int(_hero_snapshot.exp_to_next), Color(0.78, 0.60, 0.18), "EXP")
 	draw_string(ThemeDB.fallback_font, Vector2(93.0, 116.0), "Gold %d" % int(_hero_snapshot.gold), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.94, 0.76, 0.26))
+	_draw_equipment_slot(Rect2(26.0, 126.0, 190.0, 30.0), "Weapon", str(_hero_snapshot.weapon_name))
+	_draw_equipment_slot(Rect2(222.0, 126.0, 190.0, 30.0), "Armor", str(_hero_snapshot.armor_name))
+	draw_string(ThemeDB.fallback_font, Vector2(422.0, 147.0), "ATK %d  DEF %d" % [int(_hero_snapshot.attack), int(_hero_snapshot.defense)], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.82, 0.86, 0.91))
 	draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 16.0, 34.0), "1/1", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 	draw_string(ThemeDB.fallback_font, Vector2(size.x - 88.0, 28.0), "FPS %d" % Engine.get_frames_per_second(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.84, 0.88))
 	if is_instance_valid(_boss) and _boss_current > 0:
@@ -53,3 +65,8 @@ func _draw_bar(rect: Rect2, current: int, maximum: int, color: Color, label: Str
 	draw_rect(Rect2(rect.position + Vector2(2.0, 2.0), Vector2((rect.size.x - 4.0) * ratio, rect.size.y - 4.0)), color)
 	draw_rect(rect, Color(0.78, 0.66, 0.42, 0.72), false, 1.5)
 	draw_string(ThemeDB.fallback_font, rect.position + Vector2(7.0, rect.size.y - 5.0), "%s %d/%d" % [label, current, maximum], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+
+func _draw_equipment_slot(rect: Rect2, slot_name: String, item_name: String) -> void:
+	draw_rect(rect, Color(0.04, 0.05, 0.08, 0.88))
+	draw_rect(rect, Color(0.48, 0.39, 0.24, 0.82), false, 1.5)
+	draw_string(ThemeDB.fallback_font, rect.position + Vector2(7.0, 20.0), "%s: %s" % [slot_name, item_name], HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 10.0, 13, Color(0.91, 0.85, 0.72))

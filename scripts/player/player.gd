@@ -29,9 +29,11 @@ var _experience := 0
 var _experience_to_next := 100
 var _gold := 0
 var _key_actions := {&"attack": false, &"jump": false, &"skill_one": false, &"skill_two": false}
+var _profile := PlayerProfile.new()
 
 func _ready() -> void:
 	_controls = get_tree().get_first_node_in_group("mobile_controls") as MobileControls
+	_profile.stats_changed.connect(_on_stats_changed)
 	_add_body_shape()
 	_add_combat_nodes()
 	_add_camera()
@@ -112,10 +114,10 @@ func get_facing() -> float:
 	return facing
 
 func get_attack_power() -> int:
-	return 24
+	return int(_profile.get_stats().attack)
 
 func get_defense() -> int:
-	return 8
+	return int(_profile.get_stats().defense)
 
 func receive_authoritative_hit(amount: int, knockback: Vector2) -> bool:
 	return _health.apply_authoritative_damage(amount, knockback)
@@ -127,10 +129,23 @@ func grant_rewards(experience: int, gold: int) -> void:
 		_experience -= _experience_to_next
 		_level += 1
 		_experience_to_next = int(round(_experience_to_next * 1.24))
+	_profile.set_level(_level)
 	resources_changed.emit(get_resource_snapshot())
 
 func get_resource_snapshot() -> Dictionary:
-	return {"health": _health.current, "max_health": _health.maximum, "mana": _mana, "max_mana": _maximum_mana, "level": _level, "exp": _experience, "exp_to_next": _experience_to_next, "gold": _gold}
+	var stats := _profile.get_stats()
+	return {"health": _health.current, "max_health": _health.maximum, "mana": _mana, "max_mana": _maximum_mana, "level": _level, "exp": _experience, "exp_to_next": _experience_to_next, "gold": _gold, "attack": stats.attack, "defense": stats.defense, "weapon_name": stats.weapon_name, "armor_name": stats.armor_name}
+
+func get_profile() -> PlayerProfile:
+	return _profile
+
+func cycle_equipment(slot: StringName) -> void:
+	var ids := ItemCatalog.ids_for_slot(slot)
+	if ids.is_empty():
+		return
+	var current_id := _profile.weapon_id if slot == &"weapon" else _profile.armor_id
+	var next_index := (ids.find(current_id) + 1) % ids.size()
+	_profile.equip(slot, ids[next_index])
 
 func _start_attack() -> void:
 	_combo_step = 1 if _combo_grace <= 0.0 else 2
@@ -211,7 +226,10 @@ func _add_combat_nodes() -> void:
 	_health.health_changed.connect(_on_health_changed)
 	_health.damaged.connect(apply_hurt)
 	_health.depleted.connect(die)
-	_health.configure(140, 0.55)
+	var stats := _profile.get_stats()
+	_maximum_mana = int(stats.max_mana)
+	_mana = _maximum_mana
+	_health.configure(int(stats.max_health), 0.55)
 	add_child(_health)
 	var hurtbox := Hurtbox.new()
 	hurtbox.configure(self, Vector2(30.0, 46.0))
@@ -222,6 +240,13 @@ func _add_combat_nodes() -> void:
 	add_child(_hitbox)
 
 func _on_health_changed(_current: int, _maximum: int) -> void:
+	resources_changed.emit(get_resource_snapshot())
+
+func _on_stats_changed(stats: Dictionary) -> void:
+	_maximum_mana = int(stats.max_mana)
+	_mana = mini(_mana, _maximum_mana)
+	if is_instance_valid(_health):
+		_health.set_maximum(int(stats.max_health), true)
 	resources_changed.emit(get_resource_snapshot())
 
 func _draw() -> void:

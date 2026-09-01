@@ -36,6 +36,11 @@ func restore(amount: int) -> void:
 	current = mini(maximum, current + amount)
 	health_changed.emit(current, maximum)
 
+func set_maximum(next_maximum: int, preserve_ratio: bool = true) -> void:
+	var ratio := float(current) / float(maxi(1, maximum))
+	maximum = maxi(1, next_maximum)
+	current = clampi(int(round(maximum * ratio)) if preserve_ratio else mini(current, maximum), 0, maximum)
+	health_changed.emit(current, maximum)
+
 func is_invulnerable() -> bool:
 	return _iframe_remaining > 0.0
-
