@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shadowrift-authority",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-31",
+  "durable_objects": {
+    "bindings": [
+      { "name": "GAME_SESSIONS", "class_name": "GameSession" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameSession"] }
+  ],
+  "observability": { "enabled": true }
+}

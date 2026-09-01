@@ -1,0 +1,17 @@
+{
+  "name": "shadowrift-authority",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test src/domain.test.ts",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260831.0",
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.33.2"
+  }
+}
