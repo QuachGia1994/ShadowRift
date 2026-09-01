@@ -20,6 +20,10 @@ func resolve_hit(source: Node2D, target: Node2D, attack_kind: StringName) -> boo
 	var knockback := Vector2(220.0 * direction, -145.0)
 	return bool(target.call("receive_authoritative_hit", resolved_damage, knockback))
 
+func resolve_environment_hit(target: Node2D, raw_damage: int, knockback: Vector2) -> bool:
+	if not is_instance_valid(target) or not target.is_inside_tree() or not target.has_method("receive_authoritative_hit"):
+		return false
+	return bool(target.call("receive_authoritative_hit", clampi(raw_damage, 1, DAMAGE_CAP), knockback.limit_length(500.0)))
+
 func _valid_combatants(source: Node2D, target: Node2D) -> bool:
 	return is_instance_valid(source) and is_instance_valid(target) and source != target and source.is_inside_tree() and target.is_inside_tree()
-

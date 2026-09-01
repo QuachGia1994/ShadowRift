@@ -6,7 +6,7 @@ const GROUND_Y := 440.0
 var _hero: Hero
 
 func _ready() -> void:
-	_create_ground()
+	_create_zone()
 	_create_combat_authority()
 	_create_controls()
 	_create_hero()
@@ -37,19 +37,10 @@ func _create_dummy_enemy() -> void:
 	dummy.position = Vector2(430.0, GROUND_Y - 27.0)
 	add_child(dummy)
 
-func _create_ground() -> void:
-	var ground := StaticBody2D.new()
-	ground.position = Vector2(WORLD_WIDTH * 0.5, GROUND_Y + 40.0)
-	var collision := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(WORLD_WIDTH, 80.0)
-	collision.shape = shape
-	ground.add_child(collision)
-	var visual := Polygon2D.new()
-	visual.polygon = PackedVector2Array([Vector2(-WORLD_WIDTH * 0.5, -40.0), Vector2(WORLD_WIDTH * 0.5, -40.0), Vector2(WORLD_WIDTH * 0.5, 40.0), Vector2(-WORLD_WIDTH * 0.5, 40.0)])
-	visual.color = Color(0.11, 0.12, 0.15)
-	ground.add_child(visual)
-	add_child(ground)
+func _create_zone() -> void:
+	var zone := ZoneBuilder.new()
+	zone.build()
+	add_child(zone)
 
 func _draw() -> void:
 	draw_rect(Rect2(0.0, 0.0, WORLD_WIDTH, 540.0), Color(0.025, 0.035, 0.07))
