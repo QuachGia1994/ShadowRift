@@ -18,11 +18,11 @@ func build() -> void:
 func _create_tile_set() -> TileSet:
 	var image := Image.create(TILE_SIZE * 3, TILE_SIZE, false, Image.FORMAT_RGBA8)
 	for tile_index in range(3):
-		var base := [Color(0.055, 0.075, 0.12), Color(0.12, 0.15, 0.18), Color(0.17, 0.20, 0.20)][tile_index]
+		var base: Color = [Color(0.055, 0.075, 0.12), Color(0.12, 0.15, 0.18), Color(0.17, 0.20, 0.20)][tile_index]
 		for x in range(TILE_SIZE):
 			for y in range(TILE_SIZE):
 				var checker := 0.025 if (int(x / 4) + int(y / 4)) % 2 == 0 else -0.015
-				var color := base.lightened(maxf(0.0, checker)) if checker >= 0.0 else base.darkened(-checker)
+				var color: Color = base.lightened(maxf(0.0, checker)) if checker >= 0.0 else base.darkened(-checker)
 				if tile_index == 2 and y < 5:
 					color = Color(0.21, 0.37, 0.26)
 				image.set_pixel(tile_index * TILE_SIZE + x, y, color)

@@ -8,9 +8,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mobile-builds-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -21,17 +26,29 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@v4
       - name: Install pinned Android SDK components
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.1.13356709"
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1" "ndk;28.1.13356709"
       - uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.2
           use-dotnet: false
           include-templates: true
       - name: Configure Godot Android paths
-        run: godot --headless --editor --path . --script res://tools/configure_android_ci.gd
+        shell: bash
+        run: |
+          android_sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "$android_sdk" || -z "${JAVA_HOME:-}" ]]; then
+            echo "Android SDK or JAVA_HOME is missing" >&2
+            exit 1
+          fi
+          mkdir -p "$HOME/.config/godot"
+          {
+            printf '%s\n' '[gd_resource type="EditorSettings" format=3]' '' '[resource]'
+            printf 'export/android/android_sdk_path = "%s"\n' "$android_sdk"
+            printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME"
+          } > "$HOME/.config/godot/editor_settings-4.tres"
       - name: Import and export Android debug APK
         run: |
-          godot --headless --path . --editor --quit
+          godot --headless --path . --import
           mkdir -p exports/android
           godot --headless --path . --export-debug "Android Debug" exports/android/ShadowRift-debug.apk
       - uses: actions/upload-artifact@v7
@@ -42,6 +59,7 @@ jobs:
 
   ios:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:

@@ -12,7 +12,7 @@ func configure(factory: Callable, initial_capacity: int) -> void:
 		_available.append(_create_item())
 
 func acquire() -> Node:
-	var item := _available.pop_back() if not _available.is_empty() else _create_item()
+	var item: Node = _available.pop_back() if not _available.is_empty() else _create_item()
 	item.process_mode = Node.PROCESS_MODE_INHERIT
 	if item is CanvasItem:
 		(item as CanvasItem).visible = true
