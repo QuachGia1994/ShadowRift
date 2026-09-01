@@ -23,8 +23,11 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Test authoritative domain
         working-directory: server
-        run: npm test
-      - name: Type-check Worker
+        run: npm run test:unit
+      - name: Test Worker and Durable Object end to end
+        working-directory: server
+        run: npm run test:integration
+      - name: Type-check Worker and tests
         working-directory: server
         run: npm run typecheck
 

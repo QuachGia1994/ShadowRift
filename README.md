@@ -13,12 +13,15 @@ Editor runs intentionally use local debug authority. Both mobile presets include
 
 ## Verify
 
-Run the source contract check:
+Run the source contract check and the deterministic server suites:
 
 ```bash
 python tools/verify_project.py
-node --test server/src/domain.test.ts
+cd server
+npm test
 ```
+
+`npm test` runs the deterministic domain unit tests plus the Worker integration suite: `@cloudflare/vitest-plugin` drives 12 end-to-end tests against the real Worker and SQLite Durable Object inside workerd, isolated from the production Worker. `npm run typecheck` type-checks the Worker and the tests using generated runtime types; rerun `npx wrangler types` after changing any binding.
 
 With Godot installed, run behavior tests:
 
@@ -29,6 +32,8 @@ godot --headless --path . --script res://tests/test_runner.gd
 ## Authority server
 
 The server accepts only intent commands: move direction, jump, attack, skill slot, equipment ID, and sync. It rejects unknown fields, client damage/stats/rewards, invalid items, out-of-range targets, cooldown/mana violations, and replayed or out-of-order sequence numbers. A random bearer token is hashed before storage; game state is serialized and persisted inside one Durable Object per session.
+
+Protected clients reconnect fail-closed: any transport, protocol, or authentication failure locks gameplay, clears every queued and in-flight intent, and invalidates the stale sequence. Only authenticated session resume is retried, with exponential backoff and jitter capped at 30 seconds, and `lastSeq` is refreshed only from an authenticated snapshot before new input is accepted. An invalid or expired token stays locked; the client never silently creates a replacement session, and the bearer token is never logged. The HUD surfaces ONLINE, CONNECTING, RECONNECTING, and OFFLINE states.
 
 ```bash
 cd server

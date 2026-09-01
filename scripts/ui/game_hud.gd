@@ -64,7 +64,7 @@ func _draw() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.5 - 16.0, 34.0), "1/1", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 	draw_string(ThemeDB.fallback_font, Vector2(size.x - 88.0, 28.0), "FPS %d" % Engine.get_frames_per_second(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.84, 0.88))
 	if OS.has_feature("server_authoritative"):
-		var network_color := Color(0.25, 0.88, 0.52) if _network_state == "ONLINE" else Color(0.96, 0.28, 0.30)
+		var network_color := Color(0.25, 0.88, 0.52) if _network_state == "ONLINE" else Color(0.96, 0.75, 0.28) if _network_state == "RECONNECTING" else Color(0.96, 0.28, 0.30)
 		draw_string(ThemeDB.fallback_font, Vector2(size.x - 230.0, 49.0), "SERVER %s" % _network_state, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, network_color)
 		if _network_state != "ONLINE":
 			draw_rect(Rect2(size.x * 0.5 - 210.0, size.y * 0.5 - 38.0, 420.0, 76.0), Color(0.03, 0.02, 0.04, 0.92))

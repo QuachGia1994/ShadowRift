@@ -1,6 +1,6 @@
 # Game architecture
 
-> updated 2026-09-01 · 28cecf5
+> updated 2026-09-01 · M16 release gate
 
 ```mermaid
 flowchart TD
@@ -16,8 +16,8 @@ flowchart TD
 
 - `MobileControls` owns touch indices and emits one-shot actions; actors never inspect raw screen touches.
 - In protected mobile exports, actors render server snapshots. They do not activate local damaging hitboxes, spend MP, grant rewards, load local saves, or run enemy combat AI.
-- `ServerAuthorityClient` serializes one request at a time, resumes an opaque session, enforces sequence continuity, and locks gameplay on any connection/protocol failure.
-- The Worker authenticates bearer tokens by hash and routes each opaque session ID to one SQLite-backed Durable Object.
+- `ServerAuthorityClient` serializes one request at a time, resumes an opaque session, enforces sequence continuity, and locks gameplay on any connection/protocol failure. On failure it clears every queued and in-flight intent, invalidates the stale sequence, and retries only authenticated resume with exponential backoff and jitter capped at 30 seconds; `lastSeq` is refreshed only from an authenticated snapshot, and the HUD surfaces ONLINE, CONNECTING, RECONNECTING, and OFFLINE.
+- The Worker authenticates bearer tokens by hash and routes each opaque session ID to one SQLite-backed Durable Object. An integration suite (`server/test/worker.test.ts`) exercises the real Worker and Durable Object end to end inside workerd.
 - The deterministic server domain owns time, movement bounds, target selection, cooldown, mana cost, equipment allowlists, derived stats, damage, death, EXP, gold, and persistence.
 - Editor-only local mode retains `Hitbox`, `Hurtbox`, `CombatAuthority`, `HealthComponent`, and checksummed saves for fast iteration and offline behavior tests.
 - `PlayerProfile` recomputes derived stats from level and the weapon/armor catalog.

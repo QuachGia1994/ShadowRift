@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test src/domain.test.ts",
-    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node --test src/domain.test.ts",
+    "test:integration": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260819.1",
+    "@cloudflare/vitest-plugin": "^1.1.2",
     "@types/node": "^24.3.0",
     "typescript": "^5.9.2",
+    "vitest": "^4.1.11",
     "wrangler": "^4.126.0"
   }
 }

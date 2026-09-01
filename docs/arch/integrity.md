@@ -1,6 +1,6 @@
 # Server authority boundary
 
-> updated 2026-09-01 · 28cecf5
+> updated 2026-09-01 · M16 release gate
 
 ## Threat dimensions
 
@@ -18,6 +18,8 @@
 - Equipment comes from a server allowlist. Rewards are granted only during the server's alive-to-dead transition, so a kill cannot pay twice.
 - The server persists state only after an accepted command. Restart resumes from server `lastSeq`; no protected progress is loaded from local JSON.
 - All three local damage entry points return false in `server_authoritative` builds. Disconnect or invalid protocol response locks gameplay visibly.
+- Reconnect is fail-closed (M16): any transport, protocol, or authentication failure clears queued and in-flight intents, invalidates the stale sequence, and locks gameplay. Only authenticated session resume is retried, with exponential backoff and jitter capped at 30 seconds. `lastSeq` is refreshed only from an authenticated snapshot before new input is accepted, so stale combat or equipment commands are never replayed after a reconnect. An invalid or expired token remains locked; the client never silently creates a replacement session, and no bearer token is logged.
+- The Worker and SQLite Durable Object adapter is proven end to end by an isolated integration suite (12 tests in workerd) covering bearer enforcement, resume, unknown-field rejection, malformed and oversized bodies, exact sequence enforcement, and server-owned cooldown, mana, equipment, movement bounds, canonical damage, death, and reward-once behavior.
 - Editor/local debug still uses checksummed JSON, canonical stat recomputation, distance checks, and no cheat hooks.
 
 ## Limits and reopen trigger

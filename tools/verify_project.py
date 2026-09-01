@@ -20,6 +20,10 @@ REQUIRED = [
     "server/src/domain.ts",
     "server/src/worker.ts",
     "server/src/domain.test.ts",
+    "server/vitest.config.ts",
+    "server/test/worker.test.ts",
+    "server/test/tsconfig.json",
+    "server/worker-configuration.d.ts",
     "tests/test_runner.gd",
 ]
 
@@ -73,6 +77,19 @@ def main() -> int:
     client = (ROOT / "scripts/network/server_authority_client.gd").read_text(encoding="utf-8")
     require("SERVER REQUIRED — GAMEPLAY LOCKED" in runtime_text, "mobile disconnect must fail closed")
     require("SESSION_PATH" in client and "lastSeq" in client, "resumable server session protocol missing")
+    require("RECONNECTING" in client and "compute_retry_delay" in client, "bounded reconnect retry missing")
+    require("RETRY_MAX_DELAY := 30.0" in client, "reconnect retry delay cap missing")
+    require("_request_resume" in client, "retry must target authenticated resume only")
+    resume_body = client.split("func _handle_resume", 1)[1].split("\nfunc ", 1)[0]
+    require("_create_session" not in resume_body, "resume failure must not silently create a session")
+    fail_body = client.split("func _fail_closed", 1)[1].split("\nfunc ", 1)[0]
+    require(
+        "_command_queue.clear()" in fail_body and "_inflight_command.clear()" in fail_body,
+        "fail-closed must clear queued and in-flight intents",
+    )
+    require("print(" not in client, "network client must not log (bearer tokens stay private)")
+    hud = (ROOT / "scripts/ui/game_hud.gd").read_text(encoding="utf-8")
+    require("RECONNECTING" in hud, "HUD must surface the reconnecting state")
     authority = (ROOT / "scripts/combat/combat_authority.gd").read_text(encoding="utf-8")
     require(authority.count('OS.has_feature("server_authoritative")') == 3, "local damage paths remain enabled in protected builds")
     domain = (ROOT / "server/src/domain.ts").read_text(encoding="utf-8")
@@ -83,10 +100,16 @@ def main() -> int:
     mobile_workflow = (ROOT / ".github/workflows/mobile-build.yml").read_text(encoding="utf-8")
     require("Android Debug" in mobile_workflow and "iOS Debug" not in mobile_workflow and "build_unsigned_ios.sh" in mobile_workflow, "public mobile build workflow incomplete")
     verify_workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
-    require("4.7.2" in verify_workflow and "npm run typecheck" in verify_workflow and "test_runner.gd" in verify_workflow, "CI verification workflow incomplete")
+    require(
+        "4.7.2" in verify_workflow
+        and "npm run typecheck" in verify_workflow
+        and "test_runner.gd" in verify_workflow
+        and "test:integration" in verify_workflow,
+        "CI verification workflow incomplete",
+    )
     attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     require("filter=lfs" in attributes, "Git LFS patterns missing")
-    print(f"PASS: {len(REQUIRED)} required files, delimiter scan, scope, integrity, performance, exports, LFS")
+    print(f"PASS: {len(REQUIRED)} required files, delimiter scan, scope, integrity, performance, exports, reconnect, LFS")
     return 0
 
 

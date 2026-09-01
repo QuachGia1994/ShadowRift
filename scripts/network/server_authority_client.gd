@@ -8,8 +8,11 @@ signal connection_state_changed(state: String, detail: String)
 const SESSION_PATH := "user://server_session.cfg"
 const MOVE_INTERVAL := 0.10
 const SERVER_URL_SETTING := "shadow_rift/server/base_url"
+const RETRY_BASE_DELAY := 1.0
+const RETRY_MAX_DELAY := 30.0
+const RETRY_JITTER := 0.4
 
-enum Phase { OFFLINE, CONNECTING, ONLINE }
+enum Phase { OFFLINE, CONNECTING, RECONNECTING, ONLINE }
 
 var phase := Phase.OFFLINE
 var _http: HTTPRequest
@@ -22,6 +25,8 @@ var _inflight_command: Dictionary = {}
 var _command_queue: Array[Dictionary] = []
 var _move_direction := 0
 var _move_time := 0.0
+var _retry_attempt := 0
+var _retry_countdown := 0.0
 
 func _ready() -> void:
 	_http = HTTPRequest.new()
@@ -30,16 +35,23 @@ func _ready() -> void:
 	add_child(_http)
 
 func connect_to_authority() -> void:
+	if phase == Phase.CONNECTING or phase == Phase.ONLINE:
+		return
 	_base_url = str(ProjectSettings.get_setting(SERVER_URL_SETTING, "")).strip_edges().trim_suffix("/")
 	if not _base_url.begins_with("https://"):
 		_set_phase(Phase.OFFLINE, "invalid_server_url")
 		return
+	_retry_attempt = 0
 	_set_phase(Phase.CONNECTING, "connecting")
 	if _load_credentials():
-		_request_kind = "resume"
-		_send_request("%s/v1/sessions/%s" % [_base_url, _session_id], HTTPClient.METHOD_GET, _auth_headers())
+		_request_resume()
 	else:
 		_create_session()
+
+static func compute_retry_delay(attempt: int, random_value: float) -> float:
+	var base := minf(RETRY_MAX_DELAY, RETRY_BASE_DELAY * pow(2.0, float(maxi(attempt, 0))))
+	var jitter_scale := 1.0 - RETRY_JITTER * 0.5 + RETRY_JITTER * clampf(random_value, 0.0, 1.0)
+	return minf(RETRY_MAX_DELAY, base * jitter_scale)
 
 func is_online() -> bool:
 	return phase == Phase.ONLINE
@@ -57,6 +69,11 @@ func submit_action(action: String, fields: Dictionary = {}) -> bool:
 	return true
 
 func _process(delta: float) -> void:
+	if phase == Phase.RECONNECTING:
+		_retry_countdown -= delta
+		if _retry_countdown <= 0.0:
+			_attempt_resume()
+		return
 	if not is_online():
 		return
 	_move_time -= delta
@@ -67,6 +84,15 @@ func _process(delta: float) -> void:
 func _create_session() -> void:
 	_request_kind = "create"
 	_send_request("%s/v1/sessions" % _base_url, HTTPClient.METHOD_POST, [])
+
+func _request_resume() -> void:
+	_request_kind = "resume"
+	_send_request("%s/v1/sessions/%s" % [_base_url, _session_id], HTTPClient.METHOD_GET, _auth_headers())
+
+func _attempt_resume() -> void:
+	if _request_kind != "":
+		return
+	_request_resume()
 
 func _enqueue(command: Dictionary) -> void:
 	if command.action == "move":
@@ -129,16 +155,13 @@ func _handle_create(response_code: int, payload: Dictionary) -> void:
 	_dispatch_next()
 
 func _handle_resume(response_code: int, payload: Dictionary) -> void:
-	if response_code == 404:
-		_clear_credentials()
-		_create_session()
+	if response_code == 200 and bool(payload.get("ok", false)) and payload.get("state") is Dictionary:
+		_retry_attempt = 0
+		_accept_snapshot(payload.state)
+		_set_phase(Phase.ONLINE, "resumed")
+		_dispatch_next()
 		return
-	if response_code != 200 or not bool(payload.get("ok", false)) or not payload.get("state") is Dictionary:
-		_fail_closed("session_resume_rejected_%d" % response_code)
-		return
-	_accept_snapshot(payload.state)
-	_set_phase(Phase.ONLINE, "resumed")
-	_dispatch_next()
+	_fail_closed("session_resume_rejected_%d" % response_code)
 
 func _handle_command(response_code: int, payload: Dictionary) -> void:
 	_inflight_command.clear()
@@ -166,6 +189,9 @@ func _load_credentials() -> bool:
 		return false
 	_session_id = str(config.get_value("authority", "session_id", ""))
 	_token = str(config.get_value("authority", "token", ""))
+	return _has_session_credentials()
+
+func _has_session_credentials() -> bool:
 	return _session_id.length() == 36 and _token.length() >= 32
 
 func _save_credentials() -> void:
@@ -174,19 +200,26 @@ func _save_credentials() -> void:
 	config.set_value("authority", "token", _token)
 	config.save(SESSION_PATH)
 
-func _clear_credentials() -> void:
-	_session_id = ""
-	_token = ""
-	var absolute_path := ProjectSettings.globalize_path(SESSION_PATH)
-	if FileAccess.file_exists(SESSION_PATH):
-		DirAccess.remove_absolute(absolute_path)
-
 func _fail_closed(detail: String) -> void:
 	_command_queue.clear()
 	_inflight_command.clear()
 	_move_direction = 0
-	_set_phase(Phase.OFFLINE, detail)
+	_next_sequence = 1
+	if _has_session_credentials():
+		_retry_countdown = compute_retry_delay(_retry_attempt, randf())
+		_retry_attempt += 1
+		_set_phase(Phase.RECONNECTING, detail)
+	else:
+		_set_phase(Phase.OFFLINE, detail)
 
 func _set_phase(next_phase: Phase, detail: String) -> void:
 	phase = next_phase
-	connection_state_changed.emit("ONLINE" if phase == Phase.ONLINE else "CONNECTING" if phase == Phase.CONNECTING else "OFFLINE", detail)
+	var label := "OFFLINE"
+	match phase:
+		Phase.ONLINE:
+			label = "ONLINE"
+		Phase.CONNECTING:
+			label = "CONNECTING"
+		Phase.RECONNECTING:
+			label = "RECONNECTING"
+	connection_state_changed.emit(label, detail)
