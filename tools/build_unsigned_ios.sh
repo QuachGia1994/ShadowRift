@@ -3,7 +3,6 @@ set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
 export_root="$project_root/exports/ios"
-xcode_root="$export_root/xcode"
 derived_root="$export_root/DerivedData"
 payload_root="$export_root/Payload"
 archive_path="$export_root/ShadowRift-unsigned.ipa"
@@ -11,9 +10,10 @@ archive_path="$export_root/ShadowRift-unsigned.ipa"
 mkdir -p "$export_root"
 godot --headless --path "$project_root" --editor --quit
 godot --headless --path "$project_root" --export-debug "iOS Debug" "$export_root/ShadowRift-xcode.zip"
-unzip -q "$export_root/ShadowRift-xcode.zip" -d "$xcode_root"
 
-xcode_project="$(find "$xcode_root" -name '*.xcodeproj' -type d -print -quit)"
+# With application/export_project_only=true, Godot 4.7 writes the Xcode
+# project directly beside the requested export path instead of creating a zip.
+xcode_project="$(find "$export_root" -maxdepth 1 -name '*.xcodeproj' -type d -print -quit)"
 if [[ -z "$xcode_project" ]]; then
   echo "Godot did not produce an Xcode project" >&2
   exit 1
