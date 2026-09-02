@@ -123,15 +123,17 @@ def split_parts(image: Image.Image) -> list[Image.Image]:
     )
 
     raw_masks = [head, arm_back, arm_front, leg_back, leg_front]
-    clipped = [_clip_mask(mask, alpha) for mask in raw_masks]
-
-    union = Image.new("L", image.size, 0)
-    for mask in clipped:
-        # Erode the subtracting mask so torso retains a few pixels at every
-        # joint. The limb layer itself stays full-size, hiding rotation seams.
-        subtract_mask = mask.filter(ImageFilter.MinFilter(7))
-        union = ImageChops.lighter(union, subtract_mask)
-    body_alpha = ImageChops.subtract(alpha, union)
+    # Production cutouts must be alpha-exclusive. The previous implementation
+    # kept overlapping source pixels in multiple moving layers to hide seams;
+    # once those layers rotated, the duplicated semi-transparent pixels read as
+    # a blurred afterimage/ghost. Partition the original alpha exactly once.
+    remaining = alpha.copy()
+    clipped: list[Image.Image] = []
+    for mask in raw_masks:
+        part_alpha = _clip_mask(mask, remaining)
+        clipped.append(part_alpha)
+        remaining = ImageChops.subtract(remaining, part_alpha)
+    body_alpha = remaining
 
     parts: list[Image.Image] = []
     for part_alpha in [body_alpha, *clipped]:
@@ -159,6 +161,14 @@ def _opaque_fraction(image: Image.Image) -> float:
     return float(np.count_nonzero(alpha > 28) / alpha.size)
 
 
+def _alpha_overlap_max(source: Image.Image, parts: list[Image.Image]) -> int:
+    source_alpha = np.asarray(source.getchannel("A"), dtype=np.int16)
+    combined = np.zeros_like(source_alpha, dtype=np.int16)
+    for part in parts:
+        combined += np.asarray(part.getchannel("A"), dtype=np.int16)
+    return int(np.maximum(combined - source_alpha, 0).max(initial=0))
+
+
 def build_all_rigs() -> None:
     validate_sources()
     manifest: dict[str, object] = {"parts": list(PART_NAMES), "poses": {}}
@@ -167,6 +177,9 @@ def build_all_rigs() -> None:
     for relative, (master_name, cell, base_offset, base_scale) in POSES.items():
         canonical = frame(load_master(master_name), cell)
         parts = split_parts(canonical)
+        overlap_max = _alpha_overlap_max(canonical, parts)
+        if overlap_max > 1:
+            raise RuntimeError(f"rig alpha overlap for {relative}: {overlap_max}")
         output = ROOT / "assets" / "rig" / relative
         _write_atlas(parts, cell, output)
         visible_parts = sum(1 for part in parts[1:] if _opaque_fraction(part) > 0.002)
@@ -179,6 +192,7 @@ def build_all_rigs() -> None:
             "base_offset": list(base_offset),
             "base_scale": base_scale,
             "articulated_parts": visible_parts,
+            "alpha_overlap_max": overlap_max,
         }
         qa_tiles.append(Image.open(output).convert("RGBA"))
         release_master(master_name)

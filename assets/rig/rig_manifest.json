@@ -9,6 +9,7 @@
   ],
   "poses": {
     "enemies/rift_warden_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1536,
       "base_offset": [
@@ -20,6 +21,7 @@
       "source": "boss"
     },
     "enemies/warden_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [
@@ -31,6 +33,7 @@
       "source": "warden"
     },
     "enemies/wraith_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [
@@ -42,6 +45,7 @@
       "source": "wraith"
     },
     "hero/idle_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [
@@ -53,6 +57,7 @@
       "source": "hero_idle"
     },
     "hero/jump_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [
@@ -64,6 +69,7 @@
       "source": "hero_jump"
     },
     "hero/magic_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [
@@ -75,6 +81,7 @@
       "source": "hero_magic"
     },
     "hero/run_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [
@@ -86,6 +93,7 @@
       "source": "hero_run"
     },
     "hero/slash_parts.png": {
+      "alpha_overlap_max": 0,
       "articulated_parts": 5,
       "atlas_width": 1152,
       "base_offset": [

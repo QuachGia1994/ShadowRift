@@ -73,5 +73,21 @@ Crystal Trails was studied as architecture reference only — no code copied.
 - Reused concepts: explicit death recovery/checkpoint flow and animation-state selection; ShadowRift implements its own DEFEATED/RETRY UX and preserves its existing LevelManager/checkpoint architecture.
 - Local destination: scripts/world/game_world.gd, scripts/ui/game_hud.gd, tests/test_runner.gd.
 
+## saltmire/saltmire-hitbox-lite
+- URL: https://github.com/saltmire/saltmire-hitbox-lite
+- Commit: 13acca1121b59fd35b3f8dc435e977865238b843
+- License: MIT.
+- Type: ADAPT pattern only; addon code was not vendored.
+- Reused concepts: one-hit-per-swing, opposing-team filtering, explicit post-hit invincibility and knockback separation.
+- Local destination: scripts/combat/combat_authority.gd, scripts/player/player.gd, scripts/enemies/enemy_controller.gd, tests/test_runner.gd.
+
+## gdquest-demos/godot-4-homing-missiles
+- URL: https://github.com/gdquest-demos/godot-4-homing-missiles
+- Commit: 7e7d80dd2ddd00159a4ee2b81524f6182f1d43bc
+- License: source code MIT; bundled art is CC-BY-NC-SA 4.0 and was NOT copied.
+- Type: ADAPT CODE PATTERN ONLY.
+- Reused concepts: homing projectile computes desired velocity toward a live target and dampens current velocity toward that desired vector over time.
+- Local destination: scripts/performance/projectile.gd and Wraith ranged behavior in scripts/enemies/enemy_controller.gd.
+
 ---
 All adapted code retains original MIT license terms; this file satisfies attribution requirements.

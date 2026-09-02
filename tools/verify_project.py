@@ -75,6 +75,7 @@ PRODUCTION_ASSETS = [
     "assets/vfx/slash_2.png",
     "assets/vfx/skill_one_slash.png",
     "assets/vfx/skill_two_projectile.png",
+    "assets/vfx/wraith_bolt.png",
     "assets/vfx/hit_spark.png",
     "assets/vfx/dust.png",
 ]
@@ -254,11 +255,12 @@ def main() -> int:
     require("server_authoritative" not in enemies and "server_authoritative" not in boss, "enemy AI is still disabled on mobile")
 
     projectile = (ROOT / "scripts/performance/projectile.gd").read_text(encoding="utf-8")
-    require("skill_two_projectile.png" in projectile and "func _draw()" not in projectile, "projectile must render through the rift bolt texture")
+    require("skill_two_projectile.png" in projectile and "wraith_bolt.png" in projectile and "activate_homing" in projectile and "func _draw()" not in projectile, "projectile must support player rift bolt plus Wraith homing bolt textures")
 
     tests = (ROOT / "tests/test_runner.gd").read_text(encoding="utf-8")
-    require("PASS: 26 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("PASS: 29 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
     require("_test_true_articulated_rig" in tests and "_test_touch_jump_release" in tests and "_test_defeat_retry_flow" in tests, "articulated animation/retry regression coverage missing")
+    require("_test_rig_alpha_exclusive_manifest" in tests and "_test_combat_escape_window" in tests and "_test_wraith_ranged_homing" in tests, "ghosting/combat-escape/Wraith ranged regression coverage missing")
     require("_test_donor_jump_feel" in tests and "_test_moving_platform_carry" in tests, "donor game-feel coverage missing")
     require("_test_checkpoint_activation" in tests and "_test_killzone_recovery" in tests, "checkpoint/killzone coverage missing")
     require("_test_stage_transition_no_duplicates" in tests, "stage transition leak coverage missing")

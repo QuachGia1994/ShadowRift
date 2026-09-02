@@ -31,6 +31,9 @@ func _run() -> void:
 	_test_donor_jump_feel()
 	_test_touch_jump_release()
 	await _test_true_articulated_rig()
+	_test_rig_alpha_exclusive_manifest()
+	await _test_combat_escape_window()
+	await _test_wraith_ranged_homing()
 	_test_moving_platform_carry()
 	_test_checkpoint_activation()
 	_test_killzone_recovery()
@@ -55,7 +58,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	if _failures == 0:
-		print("PASS: 26 behavior tests")
+		print("PASS: 29 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -157,6 +160,87 @@ func _test_true_articulated_rig() -> void:
 	_expect(absf(_signed_degrees(boss_rig.get_bone_rotation_degrees(&"arm_front"))) >= 45.0, "boss strike visibly follows through")
 	hero_rig.queue_free()
 	boss_rig.queue_free()
+
+func _test_rig_alpha_exclusive_manifest() -> void:
+	var file := FileAccess.open("res://assets/rig/rig_manifest.json", FileAccess.READ)
+	_expect(file != null, "rig manifest loads for alpha exclusivity")
+	if file == null:
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	_expect(parsed is Dictionary, "rig manifest parses")
+	if not parsed is Dictionary:
+		return
+	var poses: Dictionary = (parsed as Dictionary).get("poses", {})
+	_expect(not poses.is_empty(), "rig manifest contains poses")
+	for pose in poses.values():
+		var entry := pose as Dictionary
+		_expect(int(entry.get("alpha_overlap_max", 999)) <= 1, "rig moving parts do not duplicate source alpha")
+
+func _test_combat_escape_window() -> void:
+	var hero := Hero.new()
+	root.add_child(hero)
+	var enemy := EnemyController.new()
+	enemy.configure(EnemyController.Kind.WARDEN, hero)
+	enemy.position = hero.position + Vector2(40.0, 0.0)
+	root.add_child(enemy)
+	await process_frame
+	_expect(enemy.get_collision_exceptions().has(hero), "enemy body does not block Hero movement")
+	_expect(hero.get_collision_exceptions().has(enemy), "Hero body does not get trapped by enemy movement")
+	_expect(hero._health.iframe_duration >= 0.75, "Hero receives a touch-friendly post-hit iframe window")
+	hero.apply_hurt(Vector2(285.0, -175.0))
+	_expect(hero._hurt_time <= 0.20, "hurt input lock is short enough to recover")
+	_expect(hero.velocity.x >= 280.0, "damage knockback creates physical separation")
+	enemy.queue_free()
+	hero.queue_free()
+	await process_frame
+
+func _test_wraith_ranged_homing() -> void:
+	var pool := ReusablePool.new()
+	pool.add_to_group("projectile_pool")
+	pool.configure(_make_projectile_test, 2)
+	root.add_child(pool)
+	var hero := Hero.new()
+	hero.position = Vector2(360.0, 400.0)
+	root.add_child(hero)
+	var wraith := EnemyController.new()
+	wraith.configure(EnemyController.Kind.WRAITH, hero)
+	wraith.position = Vector2(80.0, 400.0)
+	root.add_child(wraith)
+	await process_frame
+	wraith.state = EnemyController.State.AGGRO
+	wraith._attack_cooldown = 0.0
+	wraith._update_aggro(0.0)
+	_expect(wraith.state == EnemyController.State.ATTACK, "Wraith enters ranged cast inside its preferred band")
+	_expect(not wraith._hitbox.monitoring, "Wraith cast never enables the melee hitbox")
+	wraith._update_attack(0.23)
+	var bolt: PooledProjectile = null
+	for child in pool.get_children():
+		if child is PooledProjectile and child.process_mode != Node.PROCESS_MODE_DISABLED:
+			bolt = child as PooledProjectile
+			break
+	_expect(is_instance_valid(bolt) and bolt._homing, "Wraith cast launches a pooled homing bolt")
+	if is_instance_valid(bolt):
+		var before := bolt._velocity
+		bolt._physics_process(0.10)
+		_expect(bolt._velocity != before, "homing bolt steers toward the live target")
+	var ally := EnemyController.new()
+	ally.configure(EnemyController.Kind.WARDEN, hero)
+	ally.position = Vector2(140.0, 400.0)
+	root.add_child(ally)
+	await process_frame
+	var authority := CombatAuthority.new()
+	root.add_child(authority)
+	_expect(not authority.resolve_hit(wraith, ally, &"enemy_basic"), "combat factions reject enemy friendly fire")
+	authority.queue_free()
+	ally.queue_free()
+	wraith.queue_free()
+	hero.queue_free()
+	pool.queue_free()
+	await process_frame
+
+func _make_projectile_test() -> PooledProjectile:
+	return PooledProjectile.new()
 
 func _test_multitouch_and_safe_area() -> void:
 	var controls := MobileControls.new()
@@ -351,7 +435,7 @@ func _test_production_resources_load() -> void:
 	if tile_set != null and tile_set.has_source(0):
 		var source := tile_set.get_source(0) as TileSetAtlasSource
 		_expect(source != null and source.get_tiles_count() == 3, "rift tileset exposes three tiles")
-	for path in ["res://assets/environment/bg_sky.png", "res://assets/environment/bg_ruins.png", "res://assets/environment/bg_foreground_mist.png", "res://assets/environment/platform_rune.png", "res://assets/environment/hazard_spikes.png", "res://assets/ui/hud_frame.png", "res://assets/ui/bar_under.png", "res://assets/ui/hp_fill.png", "res://assets/ui/mp_fill.png", "res://assets/ui/exp_fill.png", "res://assets/ui/boss_fill.png", "res://assets/ui/icon_rust_blade.png", "res://assets/ui/icon_rift_saber.png", "res://assets/ui/icon_ash_vest.png", "res://assets/ui/icon_warden_mail.png", "res://assets/ui/joystick_base.png", "res://assets/ui/joystick_knob.png", "res://assets/ui/button_attack.png", "res://assets/ui/button_jump.png", "res://assets/ui/button_skill_1.png", "res://assets/ui/button_skill_2.png", "res://assets/ui/button_pause.png", "res://assets/vfx/slash_1.png", "res://assets/vfx/slash_2.png", "res://assets/vfx/skill_one_slash.png", "res://assets/vfx/skill_two_projectile.png", "res://assets/vfx/hit_spark.png", "res://assets/vfx/dust.png"]:
+	for path in ["res://assets/environment/bg_sky.png", "res://assets/environment/bg_ruins.png", "res://assets/environment/bg_foreground_mist.png", "res://assets/environment/platform_rune.png", "res://assets/environment/hazard_spikes.png", "res://assets/ui/hud_frame.png", "res://assets/ui/bar_under.png", "res://assets/ui/hp_fill.png", "res://assets/ui/mp_fill.png", "res://assets/ui/exp_fill.png", "res://assets/ui/boss_fill.png", "res://assets/ui/icon_rust_blade.png", "res://assets/ui/icon_rift_saber.png", "res://assets/ui/icon_ash_vest.png", "res://assets/ui/icon_warden_mail.png", "res://assets/ui/joystick_base.png", "res://assets/ui/joystick_knob.png", "res://assets/ui/button_attack.png", "res://assets/ui/button_jump.png", "res://assets/ui/button_skill_1.png", "res://assets/ui/button_skill_2.png", "res://assets/ui/button_pause.png", "res://assets/vfx/slash_1.png", "res://assets/vfx/slash_2.png", "res://assets/vfx/skill_one_slash.png", "res://assets/vfx/skill_two_projectile.png", "res://assets/vfx/wraith_bolt.png", "res://assets/vfx/hit_spark.png", "res://assets/vfx/dust.png"]:
 		_expect(load(path) is Texture2D, "production texture loads: %s" % path)
 
 func _test_full_scene_boot_and_pause() -> void:

@@ -22,7 +22,7 @@ All notable changes are documented in this file.
 - Player controller now uses donor-proven asymmetric gravity (rise 1800 / fall 2650, max fall 900), variable jump cut (0.42), coyote 0.11 / buffer 0.13 with `_coyote_left`/`_buffer_left` pattern, turn boost 1.55 and air-control damping for measurable jump apex and reachable authored platforms.
 - Checkpoint/death/respawn now deterministic: death animation completes, checkpoint persists via `LevelManager`, fall/hazard killzone recovers to last checkpoint, no duplicate Hero/HUD/MobileControls after stage transition or respawn, pools/tweens do not leak.
 - Save schema migrated v1->v2 (`stage_index`, `checkpoint`, `has_checkpoint`) with SHA-256 re-checksum; old v1 saves migrate safely without crash.
-- Behavior suite expanded to 26 tests, adding real touch jump release, articulated limb-motion checks, DEFEATED→RETRY checkpoint recovery, and dead-save recovery on top of donor jump feel, moving platform, checkpoint, killzone, stage-transition no-duplicate, save migration and LevelConfig data-driven coverage.
+- Behavior suite expanded to 29 tests, adding real touch jump release, articulated limb-motion checks, DEFEATED→RETRY checkpoint recovery, dead-save recovery, rig-alpha exclusivity, combat escape windows, and Wraith ranged-homing coverage on top of donor jump feel, moving platform, checkpoint, killzone, stage-transition no-duplicate, save migration and LevelConfig data-driven coverage.
 
 ### Changed
 
@@ -36,6 +36,9 @@ All notable changes are documented in this file.
 - Enemy patrol/aggro/attack logic, boss chase/windup/strike logic, hazard damage, movement, jump physics, rewards, equipment, and persistence now execute locally on Android and iOS exactly as they do in editor runs.
 - Hero death now completes its authored animation, locks gameplay input, presents a `DEFEATED` overlay, and resumes only through `RETRY` at the last checkpoint with restored HP/MP and short invulnerability. Dead saves are normalized to a playable recovery state; enemy/boss cleanup still waits for complete death animations.
 - Enemy and boss attack windows now use horizontal/vertical reach checks plus hitbox sizes/offsets matched to the high-detail painted silhouettes; the boss gains visible windup/strike body motion.
+- Articulated cutout generation now partitions source alpha exclusively between body parts, eliminating the duplicated semi-transparent pixels that produced blurred/ghost afterimages during limb rotation.
+- Hero and enemy/boss physics bodies no longer body-block one another; combat still resolves through Hurtbox/Hitbox areas. Hero post-hit invulnerability is 0.78s, hurt input lock is 0.18s, and melee knockback creates a reliable touch-control escape window instead of repeated overlap damage.
+- Wraith is now a ranged caster: it retreats when crowded, maintains a mid-range casting band, telegraphs a 0.52s cast, and fires a pooled cyan/violet homing bolt using damped desired-velocity steering. Combat faction checks reject enemy friendly fire.
 - Pause and application lifecycle transitions clear active touch ownership before gameplay resumes, preventing held/stale mobile input after interruption. Mobile Jump now tracks real press/hold/release edges instead of inferring release from keyboard state, so variable jump height behaves correctly on touch.
 - Export presets are explicitly pre-release presets with `0.1.0` package metadata; iOS CI remains intentionally unsigned and validates bundle/version metadata before packaging.
 

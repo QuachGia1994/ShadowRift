@@ -46,6 +46,10 @@ def save(img: Image.Image, w: int, h: int, relative: str) -> None:
     path = ROOT / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     img.resize((w, h), Image.LANCZOS).save(path)
+    if path.suffix.lower() == ".png":
+        source_relative = relative.replace("\\", "/")
+        import_text = f'''[remap]\n\nimporter="texture"\ntype="CompressedTexture2D"\n\n[deps]\n\nsource_file="res://{source_relative}"\n\n[params]\n\ncompress/mode=0\ncompress/high_quality=false\ncompress/lossy_quality=0.7\ncompress/hdr_compression=1\ncompress/normal_map=0\ncompress/channel_pack=0\nmipmaps/generate=false\nmipmaps/limit=-1\nroughness/mode=0\nroughness/src_normal=""\nprocess/fix_alpha_border=true\nprocess/premult_alpha=false\nprocess/normal_map_invert_y=false\nprocess/hdr_as_srgb=false\nprocess/hdr_clamp_exposure=false\nprocess/size_limit=0\ndetect_3d/compress_to=1\n'''
+        path.with_suffix(path.suffix + ".import").write_text(import_text, encoding="utf-8")
     print(f"wrote {relative} ({w}x{h})")
 
 

@@ -26,6 +26,9 @@ func _ready() -> void:
 	_add_body_shape()
 	_add_combat_nodes()
 	_add_visual_rig()
+	if is_instance_valid(target):
+		add_collision_exception_with(target)
+		target.add_collision_exception_with(self)
 
 func _physics_process(delta: float) -> void:
 	_health.tick(delta)

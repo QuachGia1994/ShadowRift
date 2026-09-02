@@ -56,6 +56,19 @@ Decision: replace the whole-image rotate/bob pseudo-animation path with `Charact
 
 Vendor isolation for this follow-up: `D:\\LacViet\\_vendor\\shadowrift-animation-donors\\`.
 
+## Combat Escape + Wraith Ranged Follow-up Research (2026-09-02)
+
+| Repository | SHA | License | Decision | ShadowRift use |
+|---|---|---|---|---|
+| `enea-codes/godot-platformer-toolkit` | `e755d6ee27501acad7a5c3976bb6eb5a4ef57dc0` | MIT | **KEEP / ADAPT** | Existing Health/Hurtbox design supports explicit invincibility plus knockback velocity; used to tune post-hit escape without adding another combat component stack. |
+| `saltmire/saltmire-hitbox-lite` | `13acca1121b59fd35b3f8dc435e977865238b843` | MIT | **ADAPT PATTERN** | One-hit-per-swing, opposing-team filtering, invincibility windows. ShadowRift keeps its own `Hitbox`/`HealthComponent`/`CombatAuthority`; addon is not vendored. |
+| `gdquest-demos/godot-4-homing-missiles` | `7e7d80dd2ddd00159a4ee2b81524f6182f1d43bc` | Source code MIT; art CC-BY-NC-SA 4.0 | **ADAPT CODE PATTERN ONLY** | Desired-velocity + damped steering for Wraith projectile. No GDQuest art copied; ShadowRift generates its own cyan/violet bolt. |
+| `godotengine/godot-demo-projects` (`2d/skeleton`) | `0db80ca5fd22b9a40e05b9bc1e00af867fb7c712` | MIT | **REFERENCE** | Confirms cutout parts should behave as distinct articulated visual pieces; used to harden alpha-exclusive cutout generation rather than layering duplicate semi-transparent source pixels. |
+
+Decision: combat Hurtbox/Hitbox areas remain separate from physical world bodies, but Hero↔enemy/boss bodies receive mutual collision exceptions to avoid overlap traps. Hero receives 0.78 s post-hit invulnerability with a shorter 0.18 s Hurt lock and stronger separation knockback. Wraith is converted from melee lunge to a 220–360 px ranged caster using the existing projectile pool, with a visible cast windup and faction-safe homing bolt.
+
+Vendor isolation for this follow-up: `D:\\LacViet\\_vendor\\shadowrift-hitbox-donor` and `D:\\LacViet\\_vendor\\shadowrift-homing-donor`; no donor repository is vendored into ShadowRift.
+
 ## Donor Isolation
 All donors cloned under D:\\LacViet\\_vendor\\shadowrift-engine-donors\\ or the animation-donor sibling directory, pinned SHAs above. No donor .git vendored into ShadowRift. Ported files are minimal adapt, not whole projects.
 

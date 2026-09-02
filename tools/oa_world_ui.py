@@ -361,6 +361,21 @@ def gen_projectile() -> None:
     save(img, W, H, "assets/vfx/skill_two_projectile.png")
 
 
+def gen_wraith_bolt() -> None:
+    W, H = 56, 28
+    img = canvas(W, H)
+    d = ImageDraw.Draw(img)
+    cy = H / 2.0
+    glow_layer(img, lambda g: ell(g, 37.0, cy, 10.0, 10.0, (120, 70, 230, 150)), 3.0, 0.9)
+    glow_layer(img, lambda g: ell(g, 38.0, cy, 6.5, 6.5, (90, 220, 245, 190)), 2.0, 0.9)
+    poly(d, [(4, cy), (30, cy - 5.0), (30, cy + 5.0)], (95, 55, 190, 130))
+    poly(d, [(10, cy), (34, cy - 2.5), (34, cy + 2.5)], (100, 205, 235, 170))
+    ell(d, 38.0, cy, 6.8, 6.8, (92, 90, 210, 235))
+    ell(d, 39.0, cy, 4.1, 4.1, (90, 220, 245, 245))
+    ell(d, 40.0, cy - 0.5, 1.8, 1.8, (245, 252, 255, 250))
+    save(img, W, H, "assets/vfx/wraith_bolt.png")
+
+
 def gen_hit_spark() -> None:
     W = 48
     img = canvas(W, W)
@@ -421,6 +436,7 @@ def build_all() -> None:
     gen_slash("slash_2", 64, 0.7, 3.6, (255, 214, 120, 220), (255, 248, 220, 255), 7.0)
     gen_slash("skill_one_slash", 96, -2.2, 0.8, (90, 210, 235, 230), (200, 250, 255, 255), 11.0)
     gen_projectile()
+    gen_wraith_bolt()
     gen_hit_spark()
     gen_dust()
 

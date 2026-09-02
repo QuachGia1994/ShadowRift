@@ -215,7 +215,7 @@ func _apply_gravity(delta: float) -> void:
     var g := GRAVITY_RISE if velocity.y < 0.0 else GRAVITY_FALL
     velocity.y = minf(velocity.y + g * delta, MAX_FALL_SPEED)
 
-func apply_hurt(knockback: Vector2, duration: float = 0.25) -> void:
+func apply_hurt(knockback: Vector2, duration: float = 0.18) -> void:
     if _dead or state == State.HURT:
         return
     velocity = knockback
@@ -488,7 +488,7 @@ func _add_combat_nodes() -> void:
     var stats := _profile.get_stats()
     _maximum_mana = int(stats.max_mana)
     _mana = _maximum_mana
-    _health.configure(int(stats.max_health), 0.55)
+    _health.configure(int(stats.max_health), 0.78)
     add_child(_health)
     var hurtbox := Hurtbox.new()
     hurtbox.configure(self, Vector2(30.0, 46.0))

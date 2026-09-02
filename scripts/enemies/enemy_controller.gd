@@ -14,6 +14,7 @@ var _anchor_x := 0.0
 var _patrol_direction := 1.0
 var _attack_cooldown := 0.0
 var _attack_time := 0.0
+var _attack_fired := false
 var _hurt_time := 0.0
 var _health: HealthComponent
 var _hitbox: Hitbox
@@ -30,6 +31,9 @@ func _ready() -> void:
 	_add_body_shape()
 	_add_combat_nodes()
 	_add_visual_rig()
+	if is_instance_valid(target):
+		add_collision_exception_with(target)
+		target.add_collision_exception_with(self)
 
 func _physics_process(delta: float) -> void:
 	_health.tick(delta)
@@ -77,31 +81,68 @@ func _update_aggro(_delta: float) -> void:
 		state = State.PATROL
 		return
 	var distance := _target_horizontal_distance()
-	if distance > 430.0 or _target_vertical_distance() > 170.0:
+	if distance > 480.0 or _target_vertical_distance() > 190.0:
 		state = State.PATROL
 		return
 	var direction := signf(target.global_position.x - global_position.x)
 	if direction != 0.0:
 		_facing = direction
+	if kind == Kind.WRAITH:
+		_update_wraith_aggro(distance, direction)
+		return
 	if distance <= _attack_range() and _target_vertical_distance() <= _attack_vertical_tolerance() and _attack_cooldown <= 0.0:
 		_start_attack(direction)
 		return
-	velocity.x = direction * _move_speed()
-	if kind == Kind.WRAITH and is_on_floor() and distance > 125.0 and distance < 235.0:
-		velocity.y = -330.0
+	if distance < 70.0 and _attack_cooldown > 0.0:
+		velocity.x = -direction * 72.0
+	else:
+		velocity.x = direction * _move_speed()
+
+func _update_wraith_aggro(distance: float, direction: float) -> void:
+	# Ranged caster spacing: retreat if crowded, approach only until a readable
+	# casting band, then hold position and telegraph the bolt.
+	if distance < 165.0:
+		velocity.x = -direction * 145.0
+		return
+	if distance > 350.0:
+		velocity.x = direction * 118.0
+	else:
+		velocity.x = move_toward(velocity.x, 0.0, 520.0 * get_physics_process_delta_time())
+	if distance <= 430.0 and _target_vertical_distance() <= 180.0 and _attack_cooldown <= 0.0:
+		_start_wraith_cast(direction)
 
 func _start_attack(direction: float) -> void:
 	state = State.ATTACK
 	_facing = direction if direction != 0.0 else _facing
-	_attack_time = 0.34 if kind == Kind.WARDEN else 0.25
-	_attack_cooldown = 1.0 if kind == Kind.WARDEN else 0.72
-	velocity.x = direction * (90.0 if kind == Kind.WARDEN else 175.0)
-	var hitbox_offset := 38.0 if kind == Kind.WARDEN else 43.0
-	_hitbox.activate(&"enemy_basic", _attack_time * 0.66, Vector2(direction * hitbox_offset, -5.0))
+	_attack_time = 0.34
+	_attack_cooldown = 1.15
+	_attack_fired = true
+	velocity.x = direction * 90.0
+	_hitbox.activate(&"enemy_basic", _attack_time * 0.66, Vector2(direction * 38.0, -5.0))
+
+func _start_wraith_cast(direction: float) -> void:
+	state = State.ATTACK
+	_facing = direction if direction != 0.0 else _facing
+	_attack_time = 0.52
+	_attack_cooldown = 1.28
+	_attack_fired = false
+	velocity.x = 0.0
+
+func _fire_wraith_bolt() -> void:
+	if _attack_fired or not is_instance_valid(target):
+		return
+	_attack_fired = true
+	var pool := get_tree().get_first_node_in_group("projectile_pool") as ReusablePool
+	if not is_instance_valid(pool):
+		return
+	var projectile := pool.acquire() as PooledProjectile
+	projectile.activate_homing(self, global_position + Vector2(_facing * 28.0, -22.0), target, &"wraith_bolt")
 
 func _update_attack(delta: float) -> void:
 	_attack_time -= delta
 	velocity.x = move_toward(velocity.x, 0.0, 850.0 * delta)
+	if kind == Kind.WRAITH and not _attack_fired and _attack_time <= 0.30:
+		_fire_wraith_bolt()
 	if _attack_time <= 0.0:
 		state = State.AGGRO
 
@@ -121,10 +162,10 @@ func _move_speed() -> float:
 	return 95.0 if kind == Kind.WARDEN else 150.0
 
 func _attack_range() -> float:
-	return 80.0 if kind == Kind.WARDEN else 88.0
+	return 80.0 if kind == Kind.WARDEN else 430.0
 
 func _attack_vertical_tolerance() -> float:
-	return 58.0 if kind == Kind.WARDEN else 86.0
+	return 58.0 if kind == Kind.WARDEN else 180.0
 
 func _on_damaged(_amount: int, knockback: Vector2) -> void:
 	state = State.HURT
@@ -195,7 +236,7 @@ func _apply_animation() -> void:
 			State.PATROL, State.AGGRO:
 				anim = &"hover"
 			State.ATTACK:
-				anim = &"dash_attack"
+				anim = &"cast"
 			State.HURT:
 				anim = &"hurt"
 			State.DEATH:
@@ -208,3 +249,6 @@ func _apply_animation() -> void:
 
 func _animation_duration(animation: StringName) -> float:
 	return _rig.get_animation_duration(animation) if is_instance_valid(_rig) else 0.7
+
+func get_facing() -> float:
+	return _facing
