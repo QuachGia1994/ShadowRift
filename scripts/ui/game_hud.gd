@@ -1,6 +1,8 @@
 extends Control
 class_name GameHud
 
+signal retry_requested
+
 const GOLD := Color(0.92, 0.73, 0.34)
 const TEXT := Color(0.92, 0.94, 0.97)
 const MUTED := Color(0.64, 0.70, 0.78)
@@ -24,6 +26,7 @@ var _hero_snapshot: Dictionary = {}
 var _boss_current := 0
 var _boss_maximum := 1
 var _paused := false
+var _defeated := false
 
 var _panel: NinePatchRect
 var _level_label: Label
@@ -49,6 +52,11 @@ var _fps_label: Label
 var _pause_overlay: Control
 var _pause_title: Label
 var _pause_hint: Label
+var _defeat_overlay: Control
+var _defeat_panel: NinePatchRect
+var _defeat_title: Label
+var _defeat_hint: Label
+var _retry_button: Button
 var _banner_panel: NinePatchRect
 var _banner_title: Label
 var _banner_hint: Label
@@ -103,7 +111,7 @@ func _ready() -> void:
 	_refresh_values()
 
 func _input(event: InputEvent) -> void:
-	if _paused or not event is InputEventScreenTouch or not event.pressed or not is_instance_valid(_hero):
+	if _paused or _defeated or not event is InputEventScreenTouch or not event.pressed or not is_instance_valid(_hero):
 		return
 	if _weapon_rect().has_point(event.position):
 		_hero.cycle_equipment(&"weapon")
@@ -127,7 +135,22 @@ func _on_boss_health_changed(current: int, maximum: int) -> void:
 func set_pause_state(paused: bool) -> void:
 	_paused = paused
 	if is_instance_valid(_pause_overlay):
-		_pause_overlay.visible = paused
+		_pause_overlay.visible = paused and not _defeated
+
+func show_defeat() -> void:
+	_defeated = true
+	_paused = false
+	if is_instance_valid(_pause_overlay):
+		_pause_overlay.visible = false
+	if is_instance_valid(_defeat_overlay):
+		_defeat_overlay.visible = true
+	if is_instance_valid(_retry_button):
+		_retry_button.grab_focus()
+
+func hide_defeat() -> void:
+	_defeated = false
+	if is_instance_valid(_defeat_overlay):
+		_defeat_overlay.visible = false
 
 func _weapon_rect() -> Rect2:
 	var safe := _safe_area_rect()
@@ -220,6 +243,52 @@ func _build_controls() -> void:
 	_pause_hint = _make_label("Tap || to resume", 13, Color(0.74, 0.79, 0.87))
 	_pause_overlay.add_child(_pause_hint)
 	_pause_overlay.set_meta("panel", pause_panel)
+	_build_defeat_overlay()
+
+func _build_defeat_overlay() -> void:
+	_defeat_overlay = Control.new()
+	_defeat_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_defeat_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_defeat_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	_defeat_overlay.visible = false
+	add_child(_defeat_overlay)
+	var dim := ColorRect.new()
+	dim.color = Color(0.006, 0.008, 0.018, 0.88)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_defeat_overlay.add_child(dim)
+	_defeat_panel = NinePatchRect.new()
+	_defeat_panel.texture = HUD_FRAME
+	_defeat_panel.patch_margin_left = 12
+	_defeat_panel.patch_margin_right = 12
+	_defeat_panel.patch_margin_top = 12
+	_defeat_panel.patch_margin_bottom = 12
+	_defeat_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_defeat_overlay.add_child(_defeat_panel)
+	_defeat_title = _make_label("DEFEATED", 28, Color(0.96, 0.43, 0.46))
+	_defeat_overlay.add_child(_defeat_title)
+	_defeat_hint = _make_label("Return to the last checkpoint", 12, Color(0.74, 0.79, 0.87))
+	_defeat_overlay.add_child(_defeat_hint)
+	_retry_button = Button.new()
+	_retry_button.text = "RETRY"
+	_retry_button.process_mode = Node.PROCESS_MODE_ALWAYS
+	_retry_button.focus_mode = Control.FOCUS_ALL
+	_retry_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_retry_button.add_theme_font_size_override("font_size", 16)
+	_retry_button.add_theme_color_override("font_color", Color(1.0, 0.92, 0.72))
+	_retry_button.add_theme_color_override("font_hover_color", Color.WHITE)
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.05, 0.07, 0.12, 0.96)
+	normal.border_color = GOLD
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(8)
+	_retry_button.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.11, 0.12, 0.18, 0.98)
+	_retry_button.add_theme_stylebox_override("hover", hover)
+	_retry_button.add_theme_stylebox_override("pressed", hover)
+	_retry_button.pressed.connect(func() -> void: retry_requested.emit())
+	_defeat_overlay.add_child(_retry_button)
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:
 	var label := Label.new()
@@ -268,7 +337,6 @@ func _make_icon() -> TextureRect:
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(icon)
 	return icon
 
 func _layout(safe: Rect2) -> void:
@@ -291,17 +359,17 @@ func _layout(safe: Rect2) -> void:
 	var weapon_rect := _weapon_rect()
 	_weapon_slot.position = weapon_rect.position
 	_weapon_slot.size = weapon_rect.size
-	_weapon_icon.position = weapon_rect.position + Vector2(6.0, 3.0)
+	_weapon_icon.position = Vector2(6.0, 3.0)
 	_weapon_icon.size = Vector2(22.0, 22.0)
-	_weapon_slot_label.position = weapon_rect.position + Vector2(32.0, 1.0)
-	_weapon_name_label.position = weapon_rect.position + Vector2(32.0, 12.0)
+	_weapon_slot_label.position = Vector2(32.0, 1.0)
+	_weapon_name_label.position = Vector2(32.0, 12.0)
 	var armor_rect := _armor_rect()
 	_armor_slot.position = armor_rect.position
 	_armor_slot.size = armor_rect.size
-	_armor_icon.position = armor_rect.position + Vector2(6.0, 3.0)
+	_armor_icon.position = Vector2(6.0, 3.0)
 	_armor_icon.size = Vector2(22.0, 22.0)
-	_armor_slot_label.position = armor_rect.position + Vector2(32.0, 1.0)
-	_armor_name_label.position = armor_rect.position + Vector2(32.0, 12.0)
+	_armor_slot_label.position = Vector2(32.0, 1.0)
+	_armor_name_label.position = Vector2(32.0, 12.0)
 	var center_x := safe.position.x + safe.size.x * 0.5
 	_stage_label.position = Vector2(center_x - 92.0, safe.position.y - 6.0)
 	var boss_width := minf(430.0, safe.size.x * 0.38)
@@ -319,6 +387,12 @@ func _layout(safe: Rect2) -> void:
 	pause_panel.size = Vector2(310.0, 122.0)
 	_pause_title.position = pause_center - Vector2(54.0, 32.0)
 	_pause_hint.position = pause_center + Vector2(-62.0, 8.0)
+	_defeat_panel.position = pause_center - Vector2(178.0, 88.0)
+	_defeat_panel.size = Vector2(356.0, 176.0)
+	_defeat_title.position = pause_center + Vector2(-72.0, -60.0)
+	_defeat_hint.position = pause_center + Vector2(-96.0, -18.0)
+	_retry_button.position = pause_center + Vector2(-72.0, 28.0)
+	_retry_button.size = Vector2(144.0, 44.0)
 
 func _set_cached(label: Label, key: String, value: String) -> void:
 	if _text_cache.get(key) != value:

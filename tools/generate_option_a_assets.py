@@ -1,22 +1,16 @@
 """Shadow Rift - OPTION A production asset generator (entry point).
 
-Characters compile from committed Option A high-detail masters under
-art_source/option_a_masters (Godot-ignored). Environment/UI/VFX remain
-the deterministic local generators. Output paths and Godot animation
-contracts stay stable.
+Characters compile into articulated cutout atlases from committed Option A
+high-detail masters under art_source/option_a_masters (Godot-ignored).
+Environment/UI/VFX remain deterministic local generators.
 
 Run: python tools/generate_option_a_assets.py
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from build_high_detail_characters import build_all_sheets  # noqa: E402
-from oa_world_ui import build_all as build_world_ui  # noqa: E402
-from oa_resources import build_all as build_resources  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = ROOT / "build" / "reports"
@@ -42,11 +36,19 @@ def write_gap_report() -> None:
     print(f"wrote {path.relative_to(ROOT)}")
 
 
+def _run_stage(script_name: str) -> None:
+    subprocess.run([sys.executable, "-u", str(ROOT / "tools" / script_name)], cwd=ROOT, check=True)
+    print(f"stage complete: {script_name}", flush=True)
+
+
 def main() -> int:
-    print("Generating OPTION A production assets (high-detail character masters)...")
-    build_all_sheets()
-    build_world_ui()
-    build_resources()
+    print("Generating OPTION A production assets (articulated cutout rigs)...", flush=True)
+    # Each Pillow-heavy phase gets a fresh process so peak image buffers are
+    # returned to the OS before the next phase. This keeps regeneration stable
+    # on memory-constrained Windows/CI hosts while remaining one user command.
+    _run_stage("oa_world_ui.py")
+    _run_stage("build_character_rigs.py")
+    _run_stage("oa_resources.py")
     write_gap_report()
     print("Done.")
     return 0

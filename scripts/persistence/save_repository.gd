@@ -110,9 +110,9 @@ func _migrate_v1_to_v2(payload: Dictionary) -> Dictionary:
 
 func _canonical_payload(payload: Dictionary) -> String:
     var equipment := payload.equipment as Dictionary
-    var parts := [payload.level, payload.experience, payload.experience_to_next, payload.gold, payload.mana, payload.health, equipment.weapon, equipment.armor, payload.get("stage_index", 0), str(payload.get("has_checkpoint", false)), str(payload.get("checkpoint", Vector2.ZERO))]
+    var parts := [int(payload.level), int(payload.experience), int(payload.experience_to_next), int(payload.gold), int(payload.mana), int(payload.health), str(equipment.weapon), str(equipment.armor), int(payload.get("stage_index", 0)), str(bool(payload.get("has_checkpoint", false))), str(payload.get("checkpoint", Vector2.ZERO))]
     return JSON.stringify(parts)
 
 func _canonical_payload_legacy(payload: Dictionary) -> String:
     var equipment := payload.equipment as Dictionary
-    return JSON.stringify([payload.level, payload.experience, payload.experience_to_next, payload.gold, payload.mana, payload.health, equipment.weapon, equipment.armor])
+    return JSON.stringify([int(payload.level), int(payload.experience), int(payload.experience_to_next), int(payload.gold), int(payload.mana), int(payload.health), str(equipment.weapon), str(equipment.armor)])

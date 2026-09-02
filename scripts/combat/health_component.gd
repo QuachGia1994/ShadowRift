@@ -46,5 +46,8 @@ func set_current(next_current: int) -> void:
 	current = clampi(next_current, 0, maximum)
 	health_changed.emit(current, maximum)
 
+func grant_invulnerability(seconds: float) -> void:
+	_iframe_remaining = maxf(_iframe_remaining, maxf(0.0, seconds))
+
 func is_invulnerable() -> bool:
 	return _iframe_remaining > 0.0

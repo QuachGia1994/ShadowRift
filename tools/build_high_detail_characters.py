@@ -20,6 +20,7 @@ HERO_CELL = 192
 ENEMY_CELL = 192
 BOSS_CELL = 256
 COLS = 8
+MAX_KEY_SOURCE = 896
 
 # Filenames are historical labels; mapping is by inspected subject content.
 SOURCE_FILES = {
@@ -114,11 +115,20 @@ def load_master(name: str) -> Image.Image:
         return cached
     path = SOURCE_DIR / SOURCE_FILES[name]
     print(f"key {path.name} -> {name}")
-    master = remove_backdrop(Image.open(path))
+    with Image.open(path) as source:
+        source = source.convert("RGB")
+        source.thumbnail((MAX_KEY_SOURCE, MAX_KEY_SOURCE), Image.Resampling.LANCZOS)
+        master = remove_backdrop(source)
     master = ImageEnhance.Contrast(master).enhance(1.05)
     master = ImageEnhance.Sharpness(master).enhance(1.06)
     _MASTER_CACHE[name] = master
     return master
+
+
+def release_master(name: str) -> None:
+    master = _MASTER_CACHE.pop(name, None)
+    if master is not None:
+        master.close()
 
 
 def tint(image: Image.Image, color: tuple[int, int, int], strength: float) -> Image.Image:

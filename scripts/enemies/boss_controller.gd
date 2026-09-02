@@ -7,7 +7,6 @@ signal death_finished
 
 enum State { WATCH, CHASE, WINDUP, STRIKE, HURT, DEATH }
 
-const BOSS_FRAMES := preload("res://assets/sprites/enemies/rift_warden_frames.tres")
 const STRIKE_VFX := preload("res://assets/vfx/slash_2.png")
 
 var state := State.WATCH
@@ -17,9 +16,8 @@ var _hitbox: Hitbox
 var _state_time := 0.0
 var _attack_cooldown := 0.0
 var _attack_direction := -1.0
-var _sprite: AnimatedSprite2D
+var _rig: CharacterMotionRig2D
 var _body_collision: CollisionShape2D
-var _motion_clock := 0.0
 
 func configure(hero_target: Hero) -> void:
 	target = hero_target
@@ -27,14 +25,13 @@ func configure(hero_target: Hero) -> void:
 func _ready() -> void:
 	_add_body_shape()
 	_add_combat_nodes()
-	_add_sprite()
+	_add_visual_rig()
 
 func _physics_process(delta: float) -> void:
 	_health.tick(delta)
 	_hitbox.tick(delta)
 	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 	_state_time = maxf(0.0, _state_time - delta)
-	_motion_clock += delta
 	if not is_on_floor():
 		velocity.y += get_gravity().y * delta
 	match state:
@@ -58,9 +55,9 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0.0
 	move_and_slide()
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 65) % 2 == 0
-	_sprite.flip_h = _attack_direction < 0.0
+	if is_instance_valid(_rig):
+		_rig.set_facing(_attack_direction)
 	_apply_animation()
-	_apply_visual_motion()
 
 func get_attack_power() -> int:
 	return 25
@@ -154,15 +151,10 @@ func _add_combat_nodes() -> void:
 	_hitbox.configure(self, Vector2(84.0, 64.0))
 	add_child(_hitbox)
 
-func _add_sprite() -> void:
-	_sprite = AnimatedSprite2D.new()
-	_sprite.sprite_frames = BOSS_FRAMES
-	_sprite.centered = false
-	# 256px HD cells scaled to the original 128px visual footprint and pivot.
-	_sprite.offset = Vector2(-128.0, -206.0)
-	_sprite.scale = Vector2(128.0 / 256.0, 128.0 / 256.0)
-	add_child(_sprite)
-	_sprite.play(&"watch")
+func _add_visual_rig() -> void:
+	_rig = CharacterMotionRig2D.new()
+	_rig.configure(&"boss")
+	add_child(_rig)
 
 func _apply_animation() -> void:
 	var anim := &"watch"
@@ -179,41 +171,12 @@ func _apply_animation() -> void:
 			anim = &"hurt"
 		State.DEATH:
 			anim = &"death"
-	if _sprite.animation != anim:
-		_sprite.play(anim)
+	if is_instance_valid(_rig):
+		var speed := clampf(absf(velocity.x) / 105.0, 0.72, 1.28) if state == State.CHASE else 1.0
+		_rig.play(anim, speed)
 
 func _animation_duration(animation: StringName) -> float:
-	var fps := maxf(0.01, _sprite.sprite_frames.get_animation_speed(animation))
-	return float(_sprite.sprite_frames.get_frame_count(animation)) / fps
-
-func _apply_visual_motion() -> void:
-	if not is_instance_valid(_sprite):
-		return
-	var base_scale := 128.0 / 256.0
-	_sprite.position = Vector2.ZERO
-	_sprite.rotation = 0.0
-	_sprite.scale = Vector2(base_scale, base_scale)
-	match state:
-		State.WATCH:
-			_sprite.position.y = sin(_motion_clock * 3.8) * 2.0
-			_sprite.scale = Vector2(base_scale * (1.0 + sin(_motion_clock * 2.2) * 0.012), base_scale)
-		State.CHASE:
-			_sprite.position.y = absf(sin(_motion_clock * 7.0)) * -3.0
-			_sprite.rotation = deg_to_rad(1.8 * _attack_direction)
-		State.WINDUP:
-			var charge := clampf(1.0 - (_state_time / 0.46), 0.0, 1.0)
-			_sprite.position.x = -6.0 * _attack_direction * charge
-			_sprite.rotation = deg_to_rad(-7.0 * _attack_direction * charge)
-			_sprite.scale = Vector2(base_scale * (1.0 - charge * 0.04), base_scale * (1.0 + charge * 0.06))
-		State.STRIKE:
-			_sprite.position.x = 10.0 * _attack_direction
-			_sprite.rotation = deg_to_rad(9.0 * _attack_direction)
-			_sprite.scale = Vector2(base_scale * 1.08, base_scale * 0.94)
-		State.HURT:
-			_sprite.position.x = -5.0 * _attack_direction
-			_sprite.rotation = deg_to_rad(-4.5 * _attack_direction)
-		State.DEATH:
-			_sprite.position.y = 3.0
+	return _rig.get_animation_duration(animation) if is_instance_valid(_rig) else 1.0
 
 func _spawn_strike_vfx() -> void:
 	var vfx := Sprite2D.new()

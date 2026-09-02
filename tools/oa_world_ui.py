@@ -423,3 +423,12 @@ def build_all() -> None:
     gen_projectile()
     gen_hit_spark()
     gen_dust()
+
+
+def main() -> int:
+    build_all()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

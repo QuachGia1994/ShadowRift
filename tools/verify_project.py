@@ -8,6 +8,7 @@ REQUIRED = [
     "export_presets.cfg",
     "scenes/game.tscn",
     "scripts/player/player.gd",
+    "scripts/animation/character_motion_rig.gd",
     "scripts/input/mobile_controls.gd",
     "scripts/combat/combat_authority.gd",
     "scripts/world/game_world.gd",
@@ -31,19 +32,21 @@ REQUIRED = [
     "scripts/ui/game_hud.gd",
     "tests/test_runner.gd",
     "tools/build_unsigned_ios.sh",
+    "tools/build_character_rigs.py",
     "THIRD_PARTY_NOTICES.md",
     "docs/arch/engine-donors.md",
 ]
 
 PRODUCTION_ASSETS = [
-    "assets/sprites/hero/hero_sheet.png",
-    "assets/sprites/hero/hero_frames.tres",
-    "assets/sprites/enemies/warden_sheet.png",
-    "assets/sprites/enemies/warden_frames.tres",
-    "assets/sprites/enemies/wraith_sheet.png",
-    "assets/sprites/enemies/wraith_frames.tres",
-    "assets/sprites/enemies/rift_warden_sheet.png",
-    "assets/sprites/enemies/rift_warden_frames.tres",
+    "assets/rig/hero/idle_parts.png",
+    "assets/rig/hero/run_parts.png",
+    "assets/rig/hero/jump_parts.png",
+    "assets/rig/hero/slash_parts.png",
+    "assets/rig/hero/magic_parts.png",
+    "assets/rig/enemies/warden_parts.png",
+    "assets/rig/enemies/wraith_parts.png",
+    "assets/rig/enemies/rift_warden_parts.png",
+    "assets/rig/rig_manifest.json",
     "assets/environment/rift_zone_tiles.png",
     "assets/environment/rift_zone_tileset.tres",
     "assets/environment/bg_sky.png",
@@ -121,21 +124,20 @@ def main() -> int:
     for source_name in ("knight-combat.jpg", "dragon.jpg", "keep-gate.jpg", "courtyard-far.jpg", "hud-ref.jpg", "courtyard.jpg", "knight.jpg", "title.jpg"):
         require((masters / source_name).is_file(), f"missing Option A high-detail master {source_name}")
     generator = (ROOT / "tools/generate_option_a_assets.py").read_text(encoding="utf-8")
-    require("build_high_detail_characters" in generator and "oa_characters" not in generator, "low-detail character generator is still active")
+    require("build_character_rigs" in generator and "build_all_sheets" not in generator and "oa_characters" not in generator, "fake whole-sprite animation generator is still active")
     require(not (ROOT / "tools/oa_characters.py").exists(), "obsolete procedural character generator remained")
-    frame_contracts = {
-        "assets/sprites/hero/hero_frames.tres": "Rect2(0, 0, 192, 192)",
-        "assets/sprites/enemies/warden_frames.tres": "Rect2(0, 0, 192, 192)",
-        "assets/sprites/enemies/wraith_frames.tres": "Rect2(0, 0, 192, 192)",
-        "assets/sprites/enemies/rift_warden_frames.tres": "Rect2(0, 0, 256, 256)",
-    }
-    for relative, signature in frame_contracts.items():
-        require(signature in (ROOT / relative).read_text(encoding="utf-8"), f"HD SpriteFrames contract missing in {relative}")
+    for obsolete in ("assets/sprites/hero/hero_sheet.png", "assets/sprites/hero/hero_frames.tres", "assets/sprites/enemies/warden_sheet.png", "assets/sprites/enemies/warden_frames.tres", "assets/sprites/enemies/wraith_sheet.png", "assets/sprites/enemies/wraith_frames.tres", "assets/sprites/enemies/rift_warden_sheet.png", "assets/sprites/enemies/rift_warden_frames.tres"):
+        require(not (ROOT / obsolete).exists(), f"obsolete whole-sprite animation asset remained: {obsolete}")
+    rig_manifest = (ROOT / "assets/rig/rig_manifest.json").read_text(encoding="utf-8")
+    require('"parts"' in rig_manifest and '"articulated_parts"' in rig_manifest, "cutout rig manifest missing")
     require((ROOT / "THIRD_PARTY_NOTICES.md").is_file(), "donor provenance missing")
     require((ROOT / "docs/arch/engine-donors.md").is_file(), "donor research matrix missing")
     require(not (ROOT / "_vendor").exists() and not (ROOT / "shadowrift-engine-donors").exists(), "donor repo vendored into game")
-    require("template-2d-platformer" in (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8") and "godot-platformer-toolkit" in (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8"), "donor attribution incomplete")
-    require("crystal-trails" in (ROOT / "docs/arch/engine-donors.md").read_text(encoding="utf-8"), "reference donor missing")
+    notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    donor_doc = (ROOT / "docs/arch/engine-donors.md").read_text(encoding="utf-8")
+    require("template-2d-platformer" in notices and "godot-platformer-toolkit" in notices, "donor attribution incomplete")
+    require("godot-demo-projects" in notices and "Windy-Codes/2d-platformer-template" in notices, "animation/retry donor attribution incomplete")
+    require("crystal-trails" in donor_doc and "0db80ca5fd22" in donor_doc and "7d7aa62dbd76" in donor_doc, "animation donor decision matrix incomplete")
     for png in sorted((ROOT / "assets").rglob("*.png")):
         import_file = png.with_suffix(".png.import")
         require(import_file.is_file(), f"missing pinned import settings for {png.relative_to(ROOT).as_posix()}")
@@ -145,6 +147,8 @@ def main() -> int:
     referenced_paths = set()
     for pattern in ("scripts/**/*.gd", "tests/**/*.gd", "scenes/*.tscn", "assets/**/*.tres", "*.godot"):
         for path in ROOT.glob(pattern):
+            if not path.is_file():
+                continue
             for match in re.finditer(r"res://(assets/[A-Za-z0-9_./-]+)", path.read_text(encoding="utf-8", errors="ignore")):
                 referenced_paths.add(match.group(1))
     for referenced in sorted(referenced_paths):
@@ -175,7 +179,10 @@ def main() -> int:
     require("DRAW_CALL_BUDGET := 50" in runtime_text, "draw-call budget missing")
 
     player = (ROOT / "scripts/player/player.gd").read_text(encoding="utf-8")
-    require("AnimatedSprite2D" in player and "hero_frames.tres" in player, "hero must render through SpriteFrames resource")
+    rig = (ROOT / "scripts/animation/character_motion_rig.gd").read_text(encoding="utf-8")
+    require("CharacterMotionRig2D" in player and "AnimatedSprite2D" not in player and "hero_frames.tres" not in player, "hero must render through the articulated motion rig")
+    require("Skeleton2D" in rig and "Bone2D" in rig and "AnimationPlayer" in rig and "leg_back" in rig and "leg_front" in rig, "native articulated rig contract missing")
+    require("attack1" in rig and "attack2" in rig and "jump_rise" in rig and "fall" in rig and "land" in rig, "hero articulated animation states missing")
     require("COYOTE_TIME" in player and "JUMP_BUFFER_TIME" in player, "mobile traversal jump tuning missing")
     require("GRAVITY_RISE" in player and "GRAVITY_FALL" in player and "JUMP_CUT_FACTOR" in player and "TURN_BOOST" in player, "donor player game-feel constants missing")
     require("MovingPlatform" in (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8") or "LevelManager" in (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8"), "data-driven level manager missing from game world")
@@ -184,8 +191,9 @@ def main() -> int:
     require("dust.png" in player, "hero run dust asset missing")
     enemies = (ROOT / "scripts/enemies/enemy_controller.gd").read_text(encoding="utf-8")
     boss = (ROOT / "scripts/enemies/boss_controller.gd").read_text(encoding="utf-8")
-    require("warden_frames.tres" in enemies and "wraith_frames.tres" in enemies, "enemy SpriteFrames resources missing")
-    require("rift_warden_frames.tres" in boss, "boss SpriteFrames resource missing")
+    require("CharacterMotionRig2D" in enemies and "AnimatedSprite2D" not in enemies, "enemy articulated rig integration missing")
+    require("CharacterMotionRig2D" in boss and "AnimatedSprite2D" not in boss, "boss articulated rig integration missing")
+    require("windup" in rig and "strike" in rig, "boss telegraph/strike articulated animations missing")
     for actor_script in (player, enemies, boss):
         require("draw_colored_polygon" not in actor_script, "procedural character drawing remained")
         require("func _draw()" not in actor_script, "procedural character _draw remained")
@@ -214,6 +222,7 @@ def main() -> int:
     controls = (ROOT / "scripts/input/mobile_controls.gd").read_text(encoding="utf-8")
     require("signal pause_requested" in controls and "PROCESS_MODE_ALWAYS" in controls, "pause control must remain responsive while paused")
     require('"jump": -1' in controls and '"jump": false' in controls, "mobile jump action missing")
+    require("_held_actions" in controls and "_released_actions" in controls and "consume_action_released" in controls, "mobile press/hold/release semantics missing")
     require("get_display_safe_area" in controls and "scale_safe_area" in controls, "mobile safe-area mapping missing")
     require("reset_inputs" in controls and "NOTIFICATION_APPLICATION_PAUSED" in controls, "mobile lifecycle input reset missing")
     require("joystick_base.png" in controls and "joystick_knob.png" in controls, "joystick textures missing")
@@ -225,13 +234,16 @@ def main() -> int:
     require("get_display_safe_area" in hud, "HUD safe-area handling missing")
     require("SERVER REQUIRED" not in hud and "set_network_status" not in hud, "obsolete server HUD remained")
     require("set_pause_state" in hud and "PAUSED" in hud, "HUD pause overlay missing")
+    require("signal retry_requested" in hud and "DEFEATED" in hud and "show_defeat" in hud and "RETRY" in hud, "HUD defeat/retry flow missing")
     require("TextureProgressBar" in hud and "hud_frame.png" in hud, "HUD must use native texture controls")
     require("icon_rust_blade.png" in hud and "icon_rift_saber.png" in hud and "icon_ash_vest.png" in hud and "icon_warden_mail.png" in hud, "equipment catalog icons missing")
 
     world = (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8")
     require("_toggle_user_pause" in world and "get_tree().paused = _paused_by_user" in world, "world pause/resume contract missing")
     require("StageCatalog.count()" in world and "_load_stage" in world, "three-stage progression flow missing")
-    require("_on_hero_died" in world and "respawn_at" in world, "death respawn flow missing")
+    require("_on_hero_died" in world and "_enter_defeat_state" in world and "_retry_from_defeat" in world and "respawn_at" in world, "explicit death/retry flow missing")
+    require("_run_defeated" in world and "set_gameplay_enabled(false)" in world, "defeat input lock missing")
+    require('payload["health"] = int(snapshot.max_health)' in world, "dead-safe persistence recovery missing")
     require("_load_progress()" in world and "_save_progress()" in world, "local mobile persistence flow missing")
     require("reset_inputs()" in world and "NOTIFICATION_APPLICATION_FOCUS_OUT" in world, "world lifecycle reset missing")
     require("ServerAuthorityClient" not in world, "network authority remained in game world")
@@ -245,7 +257,8 @@ def main() -> int:
     require("skill_two_projectile.png" in projectile and "func _draw()" not in projectile, "projectile must render through the rift bolt texture")
 
     tests = (ROOT / "tests/test_runner.gd").read_text(encoding="utf-8")
-    require("PASS: 23 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("PASS: 26 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
+    require("_test_true_articulated_rig" in tests and "_test_touch_jump_release" in tests and "_test_defeat_retry_flow" in tests, "articulated animation/retry regression coverage missing")
     require("_test_donor_jump_feel" in tests and "_test_moving_platform_carry" in tests, "donor game-feel coverage missing")
     require("_test_checkpoint_activation" in tests and "_test_killzone_recovery" in tests, "checkpoint/killzone coverage missing")
     require("_test_stage_transition_no_duplicates" in tests, "stage transition leak coverage missing")

@@ -1,0 +1,100 @@
+{
+  "parts": [
+    "body",
+    "head",
+    "arm_back",
+    "arm_front",
+    "leg_back",
+    "leg_front"
+  ],
+  "poses": {
+    "enemies/rift_warden_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1536,
+      "base_offset": [
+        -128.0,
+        -206.0
+      ],
+      "base_scale": 0.5,
+      "cell": 256,
+      "source": "boss"
+    },
+    "enemies/warden_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -126.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "warden"
+    },
+    "enemies/wraith_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -126.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "wraith"
+    },
+    "hero/idle_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -129.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "hero_idle"
+    },
+    "hero/jump_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -129.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "hero_jump"
+    },
+    "hero/magic_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -129.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "hero_magic"
+    },
+    "hero/run_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -129.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "hero_run"
+    },
+    "hero/slash_parts.png": {
+      "articulated_parts": 5,
+      "atlas_width": 1152,
+      "base_offset": [
+        -96.0,
+        -129.0
+      ],
+      "base_scale": 0.3333333333333333,
+      "cell": 192,
+      "source": "hero_slash"
+    }
+  }
+}

@@ -7,9 +7,6 @@ signal death_finished
 enum Kind { WARDEN, WRAITH }
 enum State { PATROL, AGGRO, ATTACK, HURT, DEATH }
 
-const WARDEN_FRAMES := preload("res://assets/sprites/enemies/warden_frames.tres")
-const WRAITH_FRAMES := preload("res://assets/sprites/enemies/wraith_frames.tres")
-
 var kind := Kind.WARDEN
 var state := State.PATROL
 var target: Hero
@@ -20,10 +17,9 @@ var _attack_time := 0.0
 var _hurt_time := 0.0
 var _health: HealthComponent
 var _hitbox: Hitbox
-var _sprite: AnimatedSprite2D
+var _rig: CharacterMotionRig2D
 var _body_collision: CollisionShape2D
 var _facing := 1.0
-var _motion_clock := 0.0
 
 func configure(enemy_kind: Kind, hero_target: Hero) -> void:
 	kind = enemy_kind
@@ -33,13 +29,12 @@ func _ready() -> void:
 	_anchor_x = global_position.x
 	_add_body_shape()
 	_add_combat_nodes()
-	_add_sprite()
+	_add_visual_rig()
 
 func _physics_process(delta: float) -> void:
 	_health.tick(delta)
 	_hitbox.tick(delta)
 	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
-	_motion_clock += delta
 	if not is_on_floor():
 		velocity.y += get_gravity().y * delta
 	match state:
@@ -55,9 +50,9 @@ func _physics_process(delta: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 500.0 * delta)
 	move_and_slide()
 	visible = not _health.is_invulnerable() or int(Time.get_ticks_msec() / 60) % 2 == 0
-	_sprite.flip_h = _facing < 0.0
+	if is_instance_valid(_rig):
+		_rig.set_facing(_facing)
 	_apply_animation()
-	_apply_visual_motion()
 
 func get_attack_power() -> int:
 	return 17 if kind == Kind.WARDEN else 13
@@ -176,15 +171,10 @@ func _add_combat_nodes() -> void:
 	_hitbox.configure(self, Vector2(52.0, 42.0) if kind == Kind.WARDEN else Vector2(56.0, 42.0))
 	add_child(_hitbox)
 
-func _add_sprite() -> void:
-	_sprite = AnimatedSprite2D.new()
-	_sprite.sprite_frames = WARDEN_FRAMES if kind == Kind.WARDEN else WRAITH_FRAMES
-	_sprite.centered = false
-	# 192px HD cells scaled to the original 64px visual footprint and pivot.
-	_sprite.offset = Vector2(-96.0, -126.0)
-	_sprite.scale = Vector2(64.0 / 192.0, 64.0 / 192.0)
-	add_child(_sprite)
-	_sprite.play(&"patrol" if kind == Kind.WARDEN else &"hover")
+func _add_visual_rig() -> void:
+	_rig = CharacterMotionRig2D.new()
+	_rig.configure(&"warden" if kind == Kind.WARDEN else &"wraith")
+	add_child(_rig)
 
 func _apply_animation() -> void:
 	var anim := &"patrol"
@@ -210,32 +200,11 @@ func _apply_animation() -> void:
 				anim = &"hurt"
 			State.DEATH:
 				anim = &"death"
-	if _sprite.animation != anim:
-		_sprite.play(anim)
+	if is_instance_valid(_rig):
+		var speed := 1.0
+		if state in [State.PATROL, State.AGGRO]:
+			speed = clampf(absf(velocity.x) / maxf(1.0, _move_speed()), 0.72, 1.35)
+		_rig.play(anim, speed)
 
 func _animation_duration(animation: StringName) -> float:
-	var fps := maxf(0.01, _sprite.sprite_frames.get_animation_speed(animation))
-	return float(_sprite.sprite_frames.get_frame_count(animation)) / fps
-
-func _apply_visual_motion() -> void:
-	if not is_instance_valid(_sprite):
-		return
-	var base_scale := 64.0 / 192.0
-	_sprite.position = Vector2.ZERO
-	_sprite.rotation = 0.0
-	_sprite.scale = Vector2(base_scale, base_scale)
-	match state:
-		State.PATROL:
-			_sprite.position.y = sin(_motion_clock * 8.0) * 1.2
-		State.AGGRO:
-			_sprite.position.y = sin(_motion_clock * 11.0) * 1.6
-			_sprite.rotation = deg_to_rad(1.2 * _facing)
-		State.ATTACK:
-			_sprite.position.x = 4.0 * _facing
-			_sprite.rotation = deg_to_rad(4.5 * _facing)
-			_sprite.scale = Vector2(base_scale * 1.04, base_scale * 0.97)
-		State.HURT:
-			_sprite.position.x = -3.0 * _facing
-			_sprite.rotation = deg_to_rad(-3.0 * _facing)
-		State.DEATH:
-			_sprite.position.y = 2.0
+	return _rig.get_animation_duration(animation) if is_instance_valid(_rig) else 0.7

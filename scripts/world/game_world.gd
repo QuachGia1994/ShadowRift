@@ -27,6 +27,7 @@ var _stage_remaining := 0
 var _stage_clear := false
 var _respawning := false
 var _transitioning := false
+var _run_defeated := false
 var _level_manager: LevelManager
 # StageCatalog.count() verification shim
 var _camera_effects: CameraEffects
@@ -41,7 +42,7 @@ func _ready() -> void:
     _load_progress()
     _create_hud()
     _create_camera_effects()
-    _load_stage(0, false)
+    _load_stage(_stage_index, false, true)
 
 func _create_background() -> void:
     _add_parallax_layer(SKY_TEXTURE, Vector2(0.0, 0.0), -30)
@@ -143,27 +144,44 @@ func _create_hud() -> void:
     layer.add_child(_hud)
     _hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     _hud.configure(_hero, null)
+    _hud.retry_requested.connect(_retry_from_defeat)
     var config := _level_manager.get_config(_stage_index) if _level_manager else null
     var stage_name := config.display_name if config else "RIFT APPROACH"
     _hud.set_stage(_stage_index + 1, _level_manager.count() if _level_manager else 3, stage_name)
 
 func _on_hero_died() -> void:
-    if _respawning or _transitioning:
+    if _respawning or _transitioning or _run_defeated:
         return
-    # ensure death animation completes before respawn (HERO death 0.66s, boss 1.0)
-    var death_dur := 0.66
-    # check boss death vs hero death: hero death
-    get_tree().create_timer(death_dur).timeout.connect(_respawn_hero)
+    if is_instance_valid(_controls):
+        _controls.set_gameplay_enabled(false)
+    # Let the authored death animation finish before exposing the recovery choice.
+    get_tree().create_timer(0.66).timeout.connect(_enter_defeat_state)
 
-func _respawn_hero() -> void:
-    if not is_instance_valid(_hero) or _transitioning:
+func _enter_defeat_state() -> void:
+    if not is_instance_valid(_hero) or not _hero.is_dead() or _transitioning:
         return
+    _run_defeated = true
+    _paused_by_user = false
+    if is_instance_valid(_hud):
+        _hud.show_defeat()
+    get_tree().paused = true
+
+func _retry_from_defeat() -> void:
+    if not _run_defeated or not is_instance_valid(_hero):
+        return
+    get_tree().paused = false
+    _run_defeated = false
     _respawning = true
+    if is_instance_valid(_hud):
+        _hud.hide_defeat()
     var respawn_pos := _level_manager.get_respawn_position() if _level_manager else Vector2(180, 406)
     _hero.respawn_at(respawn_pos)
-    _respawning = false
-    # ensure camera follows
     _hero.set_camera_world_width(_level_manager.get_current().width if _level_manager and _level_manager.get_current() else 2400.0)
+    if is_instance_valid(_controls):
+        _controls.set_gameplay_enabled(true)
+        _controls.reset_inputs()
+    _respawning = false
+    _save_progress()
 
 func _load_progress() -> void:
     var result := _save_repository.load_game()
@@ -180,20 +198,24 @@ func _save_progress() -> void:
     if not is_instance_valid(_hero):
         return
     var payload := _hero.export_save_payload()
+    if _hero.is_dead():
+        var snapshot := _hero.get_resource_snapshot()
+        payload["health"] = int(snapshot.max_health)
+        payload["mana"] = int(snapshot.max_mana)
     if _level_manager:
         var lvl_payload := _level_manager.to_save_payload()
         for k in lvl_payload:
             payload[k] = lvl_payload[k]
     _save_repository.save_game(payload)
 
-func _load_stage(index: int, with_transition: bool = true) -> void:
+func _load_stage(index: int, with_transition: bool = true, preserve_checkpoint: bool = false) -> void:
     if _transitioning:
         return
     _transitioning = true
     var prev_index := _stage_index
     _stage_index = clampi(index, 0, (_level_manager.count() - 1) if _level_manager else 2)
     if _level_manager:
-        _level_manager.set_stage(_stage_index)
+        _level_manager.set_stage(_stage_index, not preserve_checkpoint)
     var config := _level_manager.get_config(_stage_index) if _level_manager else null
     # cleanup previous stage without leaking (no duplicate Hero/HUD/Controls)
     if is_instance_valid(_stage_root):
@@ -213,8 +235,8 @@ func _load_stage(index: int, with_transition: bool = true) -> void:
     _stage_root.z_index = 0
     # defer build to ensure inside tree
     _stage_root.build()
-    # hero spawn at stage spawn or checkpoint (new stage -> spawn)
-    var spawn_pos := config.spawn if config else Vector2(180, 406)
+    # Boot may preserve a saved checkpoint; normal stage transitions always use stage spawn.
+    var spawn_pos := _level_manager.get_respawn_position() if preserve_checkpoint and _level_manager else (config.spawn if config else Vector2(180, 406))
     _hero.prepare_for_stage(spawn_pos)
     _hero.set_camera_world_width(config.width if config else 2400.0)
     # spawn enemies from config
@@ -323,6 +345,8 @@ func _play_transition(from: int, to: int) -> void:
     await get_tree().create_timer(0.28).timeout
 
 func _toggle_user_pause() -> void:
+    if _run_defeated:
+        return
     _paused_by_user = not _paused_by_user
     get_tree().paused = _paused_by_user
     if is_instance_valid(_hud):
@@ -334,6 +358,8 @@ func _notification(what: int) -> void:
     if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
         if is_instance_valid(_controls):
             _controls.reset_inputs()
+    if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+        _save_progress()
 
 func _on_stage_changed_legacy() -> void:
     pass

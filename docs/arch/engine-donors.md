@@ -44,8 +44,20 @@ GitHub research completed BEFORE custom implementation. Every candidate pinned t
 | SaveRepository schema 1 (level, exp, gold, mana, health, equipment) | template SaveManager + toolkit signal bus | SaveRepository extended to schema 1→2 migration (added stage_index/checkpoint_id), old saves migrate safely |
 | MobileControls full but jump one-shot outside donor | template input handling + GameLab4 touch | MobileControls preserved, jump one-shot kept, donor touch isolation concept referenced but not replacing |
 
+## Animation + Retry Follow-up Research (2026-09-02)
+
+| Repository | SHA | Godot | License | Decision | ShadowRift use |
+|---|---|---|---|---|---|
+| https://github.com/godotengine/godot-demo-projects (`2d/skeleton`) | `0db80ca5fd22b9a40e05b9bc1e00af867fb7c712` | 4.7 | MIT | **ADAPT** | Native Skeleton2D/Bone2D + AnimationPlayer cutout pattern; separate run/rise/fall/land states and speed-scaled locomotion. No demo art copied. |
+| https://github.com/Windy-Codes/2d-platformer-template | `7d7aa62dbd768054a0b6a06c8e479f1cf2872bcf` | 4.x | MIT code | **ADAPT PATTERN** | Explicit death→checkpoint recovery and state-driven animation selection. No bundled third-party art/audio copied. |
+| enea-codes/godot-platformer-toolkit | `e755d6ee27501acad7a5c3976bb6eb5a4ef57dc0` | 4.7 | MIT | **KEEP/REFERENCE** | Existing jump/game-feel components retained; no duplicate controller introduced. |
+
+Decision: replace the whole-image rotate/bob pseudo-animation path with `CharacterMotionRig2D`, generated cutout atlases from the existing Option A masters, and native `Skeleton2D`/`Bone2D` limb tracks. Gameplay timing, collision, hurtboxes and hitboxes remain authored by the existing actors. Death becomes an explicit `DEFEATED → RETRY → checkpoint` flow rather than a silent timer-only respawn.
+
+Vendor isolation for this follow-up: `D:\\LacViet\\_vendor\\shadowrift-animation-donors\\`.
+
 ## Donor Isolation
-All donors cloned under D:\\LacViet\\_vendor\\shadowrift-engine-donors\\, pinned SHAs above. No donor .git vendored into ShadowRift. Ported files are minimal adapt, not whole projects.
+All donors cloned under D:\\LacViet\\_vendor\\shadowrift-engine-donors\\ or the animation-donor sibling directory, pinned SHAs above. No donor .git vendored into ShadowRift. Ported files are minimal adapt, not whole projects.
 
 ## Provenance
 When code copied/adapted, THIRD_PARTY_NOTICES.md records URL, SHA, license, files, destination, copy vs adapt. Architectures learned from crystal-trails labelled REFERENCE ONLY.

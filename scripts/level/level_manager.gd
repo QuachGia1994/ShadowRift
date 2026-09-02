@@ -62,10 +62,11 @@ func advance_stage() -> bool:
     stage_changed.emit(current_index, current_config)
     return true
 
-func set_stage(index: int) -> void:
+func set_stage(index: int, reset_checkpoint_state: bool = true) -> void:
     current_index = clampi(index, 0, _configs.size() - 1)
     current_config = _configs[current_index]
-    reset_checkpoint()
+    if reset_checkpoint_state:
+        reset_checkpoint()
     stage_changed.emit(current_index, current_config)
 
 func count() -> int:

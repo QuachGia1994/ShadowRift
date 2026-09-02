@@ -32,7 +32,6 @@ const JUMP_CUT_FACTOR := 0.42
 const TURN_BOOST := 1.55
 const AIR_ACCELERATION_FACTOR := 0.88
 
-const HERO_FRAMES := preload("res://assets/sprites/hero/hero_frames.tres")
 const SLASH_ONE := preload("res://assets/vfx/slash_1.png")
 const SLASH_TWO := preload("res://assets/vfx/slash_2.png")
 const SKILL_SLASH := preload("res://assets/vfx/skill_one_slash.png")
@@ -58,8 +57,9 @@ var _key_actions := {&"attack": false, &"jump": false, &"skill_one": false, &"sk
 var _profile := PlayerProfile.new()
 var _integrity_check_time := 0.0
 var _integrity_violations := 0
-var _sprite: AnimatedSprite2D
+var _rig: CharacterMotionRig2D
 var _attack_anim := &"attack1"
+var _keyboard_jump_released := false
 var _dust_cooldown := 0.0
 var _dust_alternator := false
 var _coyote_left := 0.0
@@ -73,19 +73,25 @@ func _ready() -> void:
     _profile.stats_changed.connect(_on_stats_changed)
     _add_body_shape()
     _add_combat_nodes()
-    _add_sprite()
+    _add_visual_rig()
     _add_camera()
     _add_squash()
     resources_changed.emit(get_resource_snapshot())
 
 func _unhandled_key_input(event: InputEvent) -> void:
-    if not event is InputEventKey or not event.pressed or event.echo:
+    if not event is InputEventKey or event.echo:
+        return
+    if event.keycode == KEY_SPACE:
+        if event.pressed:
+            _key_actions[&"jump"] = true
+        else:
+            _keyboard_jump_released = true
+        return
+    if not event.pressed:
         return
     match event.keycode:
         KEY_J:
             _key_actions[&"attack"] = true
-        KEY_SPACE:
-            _key_actions[&"jump"] = true
         KEY_K:
             _key_actions[&"skill_one"] = true
         KEY_L:
@@ -139,7 +145,8 @@ func _physics_process(delta: float) -> void:
         velocity.x = move_toward(velocity.x, target_speed, accel * delta)
     if absf(move_axis) > 0.05:
         facing = signf(move_axis)
-    _sprite.flip_h = facing < 0.0
+    if is_instance_valid(_rig):
+        _rig.set_facing(facing)
     # jump with coyote + buffer (toolkit pattern _coyote_left/_buffer_left)
     if _buffer_left > 0.0 and _coyote_left > 0.0:
         _buffer_left = 0.0
@@ -161,20 +168,17 @@ func _physics_process(delta: float) -> void:
         _set_state(State.MOVE)
     else:
         _set_state(State.IDLE)
-    # variable jump cut (donor jump_cut 0.4) — early release shortens hop
+    # Variable jump cut uses the actual keyboard/touch release edge.
     if velocity.y < 0.0 and _jump_released():
         velocity.y *= JUMP_CUT_FACTOR
+    _sync_motion_animation()
     if state == State.MOVE and is_on_floor():
         _dust_cooldown -= delta
         if _dust_cooldown <= 0.0:
             _dust_cooldown = 0.16
             _spawn_dust()
     move_and_slide()
-    # platform riding: if on moving platform, inherit slight motion (AnimatableBody2D syncs, plus explicit for jitter)
-    if is_on_floor():
-        var body := get_floor_body()
-        if body is MovingPlatform:
-            global_position += body.travel.normalized() * 0.0 # tween already moves, keep sync
+    # AnimatableBody2D with sync_to_physics carries CharacterBody2D natively.
     _update_floor_state(delta)
 
 func _update_coyote(delta: float) -> void:
@@ -190,14 +194,10 @@ func _update_buffer(delta: float) -> void:
         _buffer_left = maxf(0.0, _buffer_left - delta)
 
 func _jump_released() -> bool:
-    # keyboard release or mobile jump no longer pending but was held
-    if Input.is_action_just_released("jump"):
+    if _keyboard_jump_released:
+        _keyboard_jump_released = false
         return true
-    if Input.is_key_pressed(KEY_SPACE) == false and _was_on_floor == false:
-        # mobile: if jump not pending and was rising, treat as cut once
-        # Use Input check for Space as proxy for mobile hold
-        return velocity.y < -120.0 and not Input.is_action_pressed("jump")
-    return false
+    return is_instance_valid(_controls) and _controls.consume_action_released(&"jump")
 
 func _update_floor_state(delta: float) -> void:
     var now_on_floor := is_on_floor()
@@ -205,6 +205,8 @@ func _update_floor_state(delta: float) -> void:
         landed.emit()
         if _squash:
             _squash.trigger_land()
+        if is_instance_valid(_rig):
+            _rig.play_land()
     _was_on_floor = now_on_floor
 
 func _apply_gravity(delta: float) -> void:
@@ -238,6 +240,7 @@ func respawn_at(spawn_position: Vector2) -> void:
     _coyote_left = 0.0
     _buffer_left = 0.0
     _health.set_current(_health.maximum)
+    _health.grant_invulnerability(1.0)
     _mana = _maximum_mana
     visible = true
     modulate = Color.WHITE
@@ -251,6 +254,9 @@ func place_at(spawn_position: Vector2) -> void:
         _set_state(State.IDLE)
 
 func prepare_for_stage(spawn_position: Vector2) -> void:
+    if _dead:
+        respawn_at(spawn_position)
+        return
     place_at(spawn_position)
     var health_recovery := maxi(1, int(round(float(_health.maximum) * 0.18)))
     var mana_recovery := maxi(1, int(round(float(_maximum_mana) * 0.20)))
@@ -394,34 +400,34 @@ func _set_state(next_state: State) -> void:
     _apply_animation(next_state)
 
 func _apply_animation(next_state: State) -> void:
-    if not is_instance_valid(_sprite):
+    if not is_instance_valid(_rig):
         return
     match next_state:
         State.IDLE:
-            _play(&"idle")
+            _rig.play(&"idle")
         State.MOVE:
-            _play(&"move")
+            _rig.play(&"move")
         State.JUMP:
-            _play(&"jump")
+            _rig.play(&"jump_rise" if velocity.y <= 0.0 else &"fall")
         State.ATTACK:
-            _play(_attack_anim)
+            _rig.play(_attack_anim)
         State.HURT:
-            _play(&"hurt")
+            _rig.play(&"hurt")
         State.DEATH:
-            _play(&"death")
+            _rig.play(&"death")
 
-func _play(anim: StringName) -> void:
-    if _sprite.animation != anim:
-        _sprite.play(anim)
+func _sync_motion_animation() -> void:
+    if not is_instance_valid(_rig):
+        return
+    if state == State.JUMP:
+        _rig.play(&"jump_rise" if velocity.y < 0.0 else &"fall")
+    elif state == State.MOVE:
+        _rig.play(&"move", clampf(absf(velocity.x) / MOVE_SPEED, 0.72, 1.35))
 
-func _add_sprite() -> void:
-    _sprite = AnimatedSprite2D.new()
-    _sprite.sprite_frames = HERO_FRAMES
-    _sprite.centered = false
-    _sprite.offset = Vector2(-96.0, -129.0)
-    _sprite.scale = Vector2(64.0 / 192.0, 64.0 / 192.0)
-    add_child(_sprite)
-    _sprite.play(&"idle")
+func _add_visual_rig() -> void:
+    _rig = CharacterMotionRig2D.new()
+    _rig.configure(&"hero")
+    add_child(_rig)
 
 func _spawn_vfx(texture: Texture2D, local_offset: Vector2, lifetime: float) -> void:
     var vfx := Sprite2D.new()
@@ -471,7 +477,7 @@ func _add_camera() -> void:
 
 func _add_squash() -> void:
     _squash = SquashStretch.new()
-    _squash.target = _sprite
+    _squash.target = _rig
     add_child(_squash)
 
 func _add_combat_nodes() -> void:

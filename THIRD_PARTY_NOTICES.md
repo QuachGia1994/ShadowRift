@@ -57,5 +57,21 @@ Crystal Trails was studied as architecture reference only — no code copied.
 - License: MIT — Copyright (c) 2026 sayuo
 - Type: REFERENCE ONLY (studied corner correction, redundant with donors #1/#2)
 
+## godotengine/godot-demo-projects — 2d/skeleton
+- URL: https://github.com/godotengine/godot-demo-projects
+- Commit: 0db80ca5fd22b9a40e05b9bc1e00af867fb7c712
+- License: MIT (repository license)
+- Type: ADAPT pattern only; no demo art copied.
+- Reused concepts: native Skeleton2D/Bone2D cutout hierarchy, AnimationPlayer-driven limb tracks, separate run/rise/fall/land visual states, locomotion animation speed coupled to movement.
+- Local destination: scripts/animation/character_motion_rig.gd and actor visual-state integration.
+
+## Windy-Codes/2d-platformer-template
+- URL: https://github.com/Windy-Codes/2d-platformer-template
+- Commit: 7d7aa62dbd768054a0b6a06c8e479f1cf2872bcf
+- License: MIT for project code; bundled demo assets were not copied.
+- Type: ADAPT pattern only.
+- Reused concepts: explicit death recovery/checkpoint flow and animation-state selection; ShadowRift implements its own DEFEATED/RETRY UX and preserves its existing LevelManager/checkpoint architecture.
+- Local destination: scripts/world/game_world.gd, scripts/ui/game_hud.gd, tests/test_runner.gd.
+
 ---
 All adapted code retains original MIT license terms; this file satisfies attribution requirements.

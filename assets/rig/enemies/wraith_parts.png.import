@@ -5,7 +5,7 @@ type="CompressedTexture2D"
 
 [deps]
 
-source_file="res://assets/sprites/enemies/wraith_sheet.png"
+source_file="res://assets/rig/enemies/wraith_parts.png"
 
 [params]
 

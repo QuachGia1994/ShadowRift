@@ -29,6 +29,8 @@ func _run() -> void:
 	_test_player_fsm_and_combo()
 	_test_jump_traversal_contract()
 	_test_donor_jump_feel()
+	_test_touch_jump_release()
+	await _test_true_articulated_rig()
 	_test_moving_platform_carry()
 	_test_checkpoint_activation()
 	_test_killzone_recovery()
@@ -48,9 +50,12 @@ func _run() -> void:
 	_test_performance_contract()
 	_test_production_resources_load()
 	await _test_full_scene_boot_and_pause()
+	await _test_defeat_retry_flow()
+	await process_frame
+	await process_frame
 	await process_frame
 	if _failures == 0:
-		print("PASS: 23 behavior tests")
+		print("PASS: 26 behavior tests")
 	quit(_failures)
 
 func _test_profile_recomputes_stats() -> void:
@@ -106,6 +111,52 @@ func _test_death_respawn_contract() -> void:
 	_expect(not hero.is_dead() and hero.state == Hero.State.IDLE, "respawn returns hero to playable idle state")
 	_expect(int(snapshot.health) == int(snapshot.max_health) and int(snapshot.mana) == int(snapshot.max_mana), "respawn restores health and mana")
 	hero.queue_free()
+
+func _test_touch_jump_release() -> void:
+	var controls := MobileControls.new()
+	controls.size = Vector2(960.0, 540.0)
+	root.add_child(controls)
+	var press := InputEventScreenTouch.new()
+	press.index = 7
+	press.position = controls._button_center("jump")
+	press.pressed = true
+	controls._handle_touch(press)
+	_expect(controls.is_action_held(&"jump"), "touch jump exposes a real held state")
+	_expect(controls.consume_action(&"jump"), "touch jump press remains one-shot for takeoff")
+	_expect(not controls.consume_action_released(&"jump"), "touch jump is not released while finger remains down")
+	var release := InputEventScreenTouch.new()
+	release.index = 7
+	release.position = press.position
+	release.pressed = false
+	controls._handle_touch(release)
+	_expect(not controls.is_action_held(&"jump"), "touch jump clears held state on finger release")
+	_expect(controls.consume_action_released(&"jump"), "touch jump exposes the release edge for variable jump")
+	_expect(not controls.consume_action_released(&"jump"), "touch jump release edge is consumed exactly once")
+	controls.queue_free()
+
+func _test_true_articulated_rig() -> void:
+	var hero_rig := CharacterMotionRig2D.new()
+	hero_rig.configure(&"hero")
+	root.add_child(hero_rig)
+	await process_frame
+	hero_rig.play(&"move")
+	hero_rig._player.advance(0.28)
+	var hero_back := _signed_degrees(hero_rig.get_bone_rotation_degrees(&"leg_back"))
+	var hero_front := _signed_degrees(hero_rig.get_bone_rotation_degrees(&"leg_front"))
+	_expect(absf(hero_back - hero_front) >= 20.0, "hero run articulates opposite legs instead of sliding a whole sprite")
+	_expect(hero_rig._bones.size() == 6 and hero_rig._sprites.size() == 6, "hero visual uses six independent cutout parts")
+	var boss_rig := CharacterMotionRig2D.new()
+	boss_rig.configure(&"boss")
+	root.add_child(boss_rig)
+	await process_frame
+	boss_rig.play(&"windup")
+	boss_rig._player.advance(0.40)
+	_expect(absf(_signed_degrees(boss_rig.get_bone_rotation_degrees(&"arm_front"))) >= 45.0, "boss windup visibly articulates the weapon arm")
+	boss_rig.play(&"strike")
+	boss_rig._player.advance(0.20)
+	_expect(absf(_signed_degrees(boss_rig.get_bone_rotation_degrees(&"arm_front"))) >= 45.0, "boss strike visibly follows through")
+	hero_rig.queue_free()
+	boss_rig.queue_free()
 
 func _test_multitouch_and_safe_area() -> void:
 	var controls := MobileControls.new()
@@ -248,7 +299,11 @@ func _test_save_rejects_tampering() -> void:
 	var dead_payload := payload.duplicate(true)
 	dead_payload.health = 0
 	_expect(hero.restore_save_payload(dead_payload), "valid zero-health save restores")
-	_expect(hero.state == Hero.State.DEATH, "zero-health restore keeps death state consistent")
+	_expect(hero.state == Hero.State.DEATH, "zero-health restore keeps death state consistent before world recovery")
+	hero.prepare_for_stage(Vector2(180.0, 406.0))
+	var recovered := hero.get_resource_snapshot()
+	_expect(not hero.is_dead() and hero.state == Hero.State.IDLE, "stage preparation recovers a zero-health save to a playable state")
+	_expect(int(recovered.health) == int(recovered.max_health), "dead-save recovery restores health before gameplay resumes")
 	hero.queue_free()
 
 func _test_combat_uses_canonical_damage() -> void:
@@ -289,22 +344,8 @@ func _test_performance_contract() -> void:
 	_expect(PerformanceBudget.DRAW_CALL_BUDGET == 50, "draw-call budget remains capped at 50")
 
 func _test_production_resources_load() -> void:
-	var hero_frames := load("res://assets/sprites/hero/hero_frames.tres") as SpriteFrames
-	_expect(hero_frames != null, "hero SpriteFrames resource loads")
-	for anim in ["idle", "move", "jump", "attack1", "attack2", "skill_one", "skill_two", "hurt", "death"]:
-		_expect(hero_frames != null and hero_frames.has_animation(StringName(anim)), "hero animation %s exists" % anim)
-	var warden_frames := load("res://assets/sprites/enemies/warden_frames.tres") as SpriteFrames
-	_expect(warden_frames != null, "warden SpriteFrames resource loads")
-	for anim in ["patrol", "aggro", "attack", "hurt", "death"]:
-		_expect(warden_frames != null and warden_frames.has_animation(StringName(anim)), "warden animation %s exists" % anim)
-	var wraith_frames := load("res://assets/sprites/enemies/wraith_frames.tres") as SpriteFrames
-	_expect(wraith_frames != null, "wraith SpriteFrames resource loads")
-	for anim in ["hover", "dash_attack", "hurt", "death"]:
-		_expect(wraith_frames != null and wraith_frames.has_animation(StringName(anim)), "wraith animation %s exists" % anim)
-	var boss_frames := load("res://assets/sprites/enemies/rift_warden_frames.tres") as SpriteFrames
-	_expect(boss_frames != null, "boss SpriteFrames resource loads")
-	for anim in ["watch", "chase", "windup", "strike", "hurt", "death"]:
-		_expect(boss_frames != null and boss_frames.has_animation(StringName(anim)), "boss animation %s exists" % anim)
+	for path in ["res://assets/rig/hero/idle_parts.png", "res://assets/rig/hero/run_parts.png", "res://assets/rig/hero/jump_parts.png", "res://assets/rig/hero/slash_parts.png", "res://assets/rig/hero/magic_parts.png", "res://assets/rig/enemies/warden_parts.png", "res://assets/rig/enemies/wraith_parts.png", "res://assets/rig/enemies/rift_warden_parts.png"]:
+		_expect(load(path) is Texture2D, "articulated cutout texture loads: %s" % path)
 	var tile_set := load("res://assets/environment/rift_zone_tileset.tres") as TileSet
 	_expect(tile_set != null and tile_set.has_source(0), "rift tileset loads with atlas source")
 	if tile_set != null and tile_set.has_source(0):
@@ -343,11 +384,8 @@ func _test_full_scene_boot_and_pause() -> void:
 		if child is TextureRect:
 			control_visuals += 1
 	_expect(control_visuals >= 6, "mobile controls present joystick/buttons/pause as texture visuals")
-	var hero_sprite: AnimatedSprite2D = null
-	for child in game._hero.get_children():
-		if child is AnimatedSprite2D:
-			hero_sprite = child
-	_expect(hero_sprite != null and hero_sprite.sprite_frames != null, "hero renders through AnimatedSprite2D sprite frames")
+	_expect(is_instance_valid(game._hero._rig) and game._hero._rig is CharacterMotionRig2D, "hero renders through the native articulated motion rig")
+	_expect(game._hero._rig._skeleton is Skeleton2D and game._hero._rig._player is AnimationPlayer, "hero rig uses native Skeleton2D plus AnimationPlayer")
 	game._controls._left_touch = 9
 	game._toggle_user_pause()
 	_expect(paused and game._hud._paused, "pause freezes tree and shows overlay")
@@ -360,13 +398,36 @@ func _test_full_scene_boot_and_pause() -> void:
 	game.queue_free()
 	await process_frame
 
+func _test_defeat_retry_flow() -> void:
+	var packed := load("res://scenes/game.tscn") as PackedScene
+	_expect(packed != null, "main game scene loads for defeat/retry test")
+	if packed == null:
+		return
+	var game := packed.instantiate()
+	root.add_child(game)
+	await process_frame
+	var checkpoint: Vector2 = game._hero.global_position + Vector2(32.0, 0.0)
+	game._level_manager.activate_checkpoint(&"test_retry", checkpoint)
+	game._hero.die()
+	await create_timer(0.72).timeout
+	_expect(paused and game._run_defeated, "death completes into an explicit defeated state")
+	_expect(game._hud._defeated and game._hud._defeat_overlay.visible, "defeated overlay exposes the recovery flow")
+	_expect(not game._controls._gameplay_enabled, "gameplay touch input is locked while defeated")
+	game._retry_from_defeat()
+	_expect(not paused and not game._run_defeated, "retry resumes the scene tree")
+	_expect(not game._hero.is_dead() and game._hero.state == Hero.State.IDLE, "retry restores hero to a playable state")
+	_expect(game._hero.global_position.distance_to(checkpoint) < 1.0, "retry returns hero to the active checkpoint")
+	_expect(not game._hud._defeat_overlay.visible and game._controls._gameplay_enabled, "retry dismisses defeat UI and restores controls")
+	game.queue_free()
+	await process_frame
+
 func _test_donor_jump_feel() -> void:
 	var hero := Hero.new()
 	root.add_child(hero)
 	_expect(Hero.GRAVITY_RISE > 1500.0 and Hero.GRAVITY_FALL > Hero.GRAVITY_RISE, "donor asymmetric gravity preserves weight")
 	_expect(Hero.JUMP_CUT_FACTOR < 0.6 and Hero.JUMP_CUT_FACTOR > 0.2, "variable jump cut factor from donor")
 	_expect(Hero.TURN_BOOST > 1.2, "responsive turn boost from donor")
-	var height := (Hero.JUMP_SPEED * Hero.JUMP_SPEED) / (2.0 * Hero.GRAVITY_FALL)
+	var height := (Hero.JUMP_SPEED * Hero.JUMP_SPEED) / (2.0 * Hero.GRAVITY_RISE)
 	_expect(height >= 120.0, "jump apex measurable via derived gravity")
 	hero.velocity.y = -380.0
 	var before := hero.velocity.y
@@ -459,6 +520,7 @@ func _test_save_migration() -> void:
 	file.close()
 	var wrapper: Dictionary = JSON.parse_string(raw)
 	wrapper["schema"] = 1
+	wrapper["checksum"] = repo._checksum_v1(v1_payload)
 	file = FileAccess.open(repo.save_path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(wrapper))
 	file.close()
@@ -484,6 +546,9 @@ func _test_level_config_data_driven() -> void:
 	custom.has_boss = false
 	_expect(custom.width == 2600.0, "custom 4th stage configurable without core edit")
 	mgr.queue_free()
+func _signed_degrees(value: float) -> float:
+	return wrapf(value + 180.0, 0.0, 360.0) - 180.0
+
 func _expect(condition: bool, label: String) -> void:
 	if condition:
 		return

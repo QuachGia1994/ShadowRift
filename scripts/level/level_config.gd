@@ -43,13 +43,24 @@ static func from_stage_dict(index: int, data: Dictionary) -> LevelConfig:
     cfg.display_name = String(data.get("name", "STAGE %d" % (index + 1)))
     var plats = data.get("platforms", [])
     cfg.platforms = plats.duplicate(true) if plats is Array else []
-    cfg.hazards = data.get("hazards", []) as Array[Vector2]
-    cfg.enemies = data.get("enemies", []).duplicate(true) if data.get("enemies", []) is Array else []
+    var hazard_values: Variant = data.get("hazards", [])
+    if hazard_values is Array:
+        for value in hazard_values:
+            if value is Vector2:
+                cfg.hazards.append(value)
+    var enemy_values: Variant = data.get("enemies", [])
+    cfg.enemies = enemy_values.duplicate(true) if enemy_values is Array else []
+    var moving_values: Variant = data.get("moving_platforms", [])
+    cfg.moving_platforms = moving_values.duplicate(true) if moving_values is Array else []
     cfg.has_boss = bool(data.get("boss", false))
     cfg.boss_position = data.get("boss_position", Vector2(1900, 398)) as Vector2
-    cfg.checkpoints = data.get("checkpoints", []) as Array[Vector2]
+    var checkpoint_values: Variant = data.get("checkpoints", [])
+    if checkpoint_values is Array:
+        for value in checkpoint_values:
+            if value is Vector2:
+                cfg.checkpoints.append(value)
     if cfg.checkpoints.is_empty():
-        cfg.checkpoints = [cfg.spawn + Vector2(cfg.width * 0.52, 0.0)]
+        cfg.checkpoints.append(cfg.spawn + Vector2(cfg.width * 0.52, 0.0))
     cfg.death_plane_y = float(data.get("death_plane_y", 620.0))
     if index + 1 < 3:
         cfg.next_level_id = ids[index + 1]

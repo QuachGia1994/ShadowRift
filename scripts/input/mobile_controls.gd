@@ -22,6 +22,9 @@ var _left_origin := Vector2.ZERO
 var _left_position := Vector2.ZERO
 var _button_owners := {"attack": -1, "jump": -1, "skill_one": -1, "skill_two": -1}
 var _pending_actions := {"attack": false, "jump": false, "skill_one": false, "skill_two": false}
+var _held_actions := {"attack": false, "jump": false, "skill_one": false, "skill_two": false}
+var _released_actions := {"attack": false, "jump": false, "skill_one": false, "skill_two": false}
+var _gameplay_enabled := true
 
 var _joystick_base: TextureRect
 var _joystick_knob: TextureRect
@@ -47,8 +50,26 @@ func reset_inputs() -> void:
 	for action in ACTION_ORDER:
 		_button_owners[action] = -1
 		_pending_actions[action] = false
+		_held_actions[action] = false
+		_released_actions[action] = false
 	_visuals_dirty = true
 	_update_visuals()
+
+func set_gameplay_enabled(enabled: bool) -> void:
+	_gameplay_enabled = enabled
+	if not enabled:
+		reset_inputs()
+
+func is_action_held(action: StringName) -> bool:
+	return bool(_held_actions.get(String(action), false))
+
+func consume_action_released(action: StringName) -> bool:
+	var key := String(action)
+	if not _released_actions.has(key):
+		return false
+	var was_released := bool(_released_actions[key])
+	_released_actions[key] = false
+	return was_released
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
@@ -81,6 +102,8 @@ func consume_action(action: StringName) -> bool:
 	return was_pending
 
 func _handle_touch(event: InputEventScreenTouch) -> void:
+	if not _gameplay_enabled:
+		return
 	if event.pressed:
 		if event.position.distance_to(_pause_center()) <= 36.0:
 			pause_requested.emit()
@@ -101,6 +124,8 @@ func _handle_touch(event: InputEventScreenTouch) -> void:
 		for action in ACTION_ORDER:
 			if int(_button_owners[action]) == event.index:
 				_button_owners[action] = -1
+				_held_actions[action] = false
+				_released_actions[action] = true
 	_visuals_dirty = true
 	_update_visuals()
 
@@ -118,6 +143,8 @@ func _claim_button(touch_index: int, position: Vector2) -> void:
 		return
 	_button_owners[nearest_action] = touch_index
 	_pending_actions[nearest_action] = true
+	_held_actions[nearest_action] = true
+	_released_actions[nearest_action] = false
 	_visuals_dirty = true
 	_update_visuals()
 
