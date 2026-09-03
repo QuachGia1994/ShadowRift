@@ -69,12 +69,11 @@ def _subject_geometry(image: Image.Image) -> tuple[float, float, float, float, f
 
 
 def split_parts(image: Image.Image) -> list[Image.Image]:
-    """Split a keyed full-body pose into overlapping cutout layers.
+    """Split a keyed full-body pose into alpha-exclusive cutout layers.
 
-    Regions are normalized to the detected subject bounds rather than the
-    texture canvas, making the same deterministic masks work for Hero,
-    armored enemies and the larger boss. Small overlap at shoulders/hips
-    deliberately hides seams when bones rotate.
+    Regions are normalized to the detected subject bounds. Lower-leg masks
+    intentionally start below the hip/cape region so locomotion never drags a
+    large painted cloth/thigh silhouette through rotational resampling.
     """
     image = image.convert("RGBA")
     alpha = image.getchannel("A")
@@ -106,19 +105,19 @@ def split_parts(image: Image.Image) -> list[Image.Image]:
     leg_back = _polygon_mask(
         image.size,
         [
-            (cx - width * 0.01, top + height * 0.54),
-            (left + width * 0.12, top + height * 0.52),
-            (left + width * 0.05, bottom + height * 0.02),
-            (cx - width * 0.035, bottom + height * 0.02),
+            (cx - width * 0.015, top + height * 0.67),
+            (left + width * 0.22, top + height * 0.64),
+            (left + width * 0.11, bottom + height * 0.01),
+            (cx - width * 0.04, bottom + height * 0.01),
         ],
     )
     leg_front = _polygon_mask(
         image.size,
         [
-            (cx + width * 0.01, top + height * 0.54),
-            (right - width * 0.12, top + height * 0.52),
-            (right - width * 0.05, bottom + height * 0.02),
-            (cx + width * 0.035, bottom + height * 0.02),
+            (cx + width * 0.015, top + height * 0.67),
+            (right - width * 0.22, top + height * 0.64),
+            (right - width * 0.11, bottom + height * 0.01),
+            (cx + width * 0.04, bottom + height * 0.01),
         ],
     )
 

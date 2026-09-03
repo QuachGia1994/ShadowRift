@@ -99,6 +99,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
     if _dead:
+        visible = true
         _health.tick(delta)
         _apply_gravity(delta)
         move_and_slide()
@@ -226,6 +227,16 @@ func die() -> void:
     if _dead:
         return
     _dead = true
+    # Force visible: the alive-branch invulnerability flicker (visible = not
+    # _health.is_invulnerable() or blink) is skipped once _dead, so whatever
+    # value it last landed on (a ~50% coin flip from the killing hit's own
+    # i-frame flicker) would otherwise freeze forever, making the authored
+    # death animation invisible.
+    visible = true
+    modulate = Color.WHITE
+    if is_instance_valid(_rig):
+        _rig.visible = true
+        _rig.modulate = Color.WHITE
     velocity = Vector2.ZERO
     _set_state(State.DEATH)
     died.emit()
@@ -244,6 +255,9 @@ func respawn_at(spawn_position: Vector2) -> void:
     _mana = _maximum_mana
     visible = true
     modulate = Color.WHITE
+    if is_instance_valid(_rig):
+        _rig.visible = true
+        _rig.modulate = Color.WHITE
     _set_state(State.IDLE)
     resources_changed.emit(get_resource_snapshot())
 

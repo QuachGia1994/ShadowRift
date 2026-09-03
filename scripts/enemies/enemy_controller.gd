@@ -123,8 +123,8 @@ func _start_attack(direction: float) -> void:
 func _start_wraith_cast(direction: float) -> void:
 	state = State.ATTACK
 	_facing = direction if direction != 0.0 else _facing
-	_attack_time = 0.52
-	_attack_cooldown = 1.28
+	_attack_time = 0.72
+	_attack_cooldown = 1.55
 	_attack_fired = false
 	velocity.x = 0.0
 
@@ -141,7 +141,7 @@ func _fire_wraith_bolt() -> void:
 func _update_attack(delta: float) -> void:
 	_attack_time -= delta
 	velocity.x = move_toward(velocity.x, 0.0, 850.0 * delta)
-	if kind == Kind.WRAITH and not _attack_fired and _attack_time <= 0.30:
+	if kind == Kind.WRAITH and not _attack_fired and _attack_time <= 0.18:
 		_fire_wraith_bolt()
 	if _attack_time <= 0.0:
 		state = State.AGGRO

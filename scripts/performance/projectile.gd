@@ -3,9 +3,10 @@ class_name PooledProjectile
 
 const MAX_LIFETIME := 1.6
 const SPEED := 470.0
-const WRAITH_LIFETIME := 2.4
-const WRAITH_SPEED := 360.0
-const HOMING_RESPONSE := 7.0
+const WRAITH_LIFETIME := 1.85
+const WRAITH_SPEED := 285.0
+const WRAITH_HOMING_TIME := 0.38
+const WRAITH_MAX_TURN_RATE := 105.0 * PI / 180.0
 const PROJECTILE_TEXTURE := preload("res://assets/vfx/skill_two_projectile.png")
 const WRAITH_TEXTURE := preload("res://assets/vfx/wraith_bolt.png")
 
@@ -18,6 +19,7 @@ var _sprite: Sprite2D
 var _velocity := Vector2.ZERO
 var _target: Node2D
 var _homing := false
+var _homing_remaining := 0.0
 
 func _ready() -> void:
 	collision_layer = 0
@@ -42,6 +44,7 @@ func activate(source: Node2D, origin: Vector2, direction: float, kind: StringNam
 	_hit_ids.clear()
 	_target = null
 	_homing = false
+	_homing_remaining = 0.0
 	_velocity = Vector2(SPEED * _direction, 0.0)
 	_sprite.texture = PROJECTILE_TEXTURE
 	_sprite.flip_h = _direction < 0.0
@@ -56,12 +59,13 @@ func activate_homing(source: Node2D, origin: Vector2, homing_target: Node2D, kin
 	_hit_ids.clear()
 	_target = homing_target
 	_homing = true
+	_homing_remaining = WRAITH_HOMING_TIME
 	var launch_direction := Vector2.RIGHT
 	if is_instance_valid(_target):
 		launch_direction = global_position.direction_to(_target.global_position)
 	elif source.has_method("get_facing"):
 		launch_direction.x = float(source.call("get_facing"))
-	_velocity = launch_direction.normalized() * (WRAITH_SPEED * 0.72)
+	_velocity = launch_direction.normalized() * WRAITH_SPEED
 	_sprite.texture = WRAITH_TEXTURE
 	_sprite.flip_h = false
 	_sprite.rotation = _velocity.angle()
@@ -70,14 +74,22 @@ func activate_homing(source: Node2D, origin: Vector2, homing_target: Node2D, kin
 func _physics_process(delta: float) -> void:
 	if _remaining <= 0.0:
 		return
-	if _homing and is_instance_valid(_target) and _target.is_inside_tree():
-		# GDQuest donor pattern: desired target velocity plus a damped steering
-		# change. The exponential response makes the turn rate frame-rate safe.
-		var desired_velocity := global_position.direction_to(_target.global_position) * WRAITH_SPEED
-		var steering := 1.0 - exp(-HOMING_RESPONSE * delta)
-		_velocity = _velocity.lerp(desired_velocity, steering)
+	if _homing and _homing_remaining > 0.0 and is_instance_valid(_target) and _target.is_inside_tree():
+		# Keep the donor's target-seeking idea, but cap angular velocity and only
+		# steer briefly after launch. The bolt then commits to a ballistic line,
+		# so a touch player can sidestep/jump it instead of being chased forever.
+		var desired_angle := global_position.direction_to(_target.global_position).angle()
+		var current_angle := _velocity.angle()
+		var angle_delta := wrapf(desired_angle - current_angle, -PI, PI)
+		var max_step := WRAITH_MAX_TURN_RATE * delta
+		current_angle += clampf(angle_delta, -max_step, max_step)
+		_velocity = Vector2.RIGHT.rotated(current_angle) * WRAITH_SPEED
+		_homing_remaining = maxf(0.0, _homing_remaining - delta)
+		if _homing_remaining <= 0.0:
+			_homing = false
+			_target = null
 	global_position += _velocity * delta
-	if _homing and _velocity.length_squared() > 1.0:
+	if _velocity.length_squared() > 1.0:
 		_sprite.rotation = _velocity.angle()
 	_remaining -= delta
 	if _remaining <= 0.0:
@@ -87,6 +99,7 @@ func deactivate() -> void:
 	monitoring = false
 	_target = null
 	_homing = false
+	_homing_remaining = 0.0
 	_velocity = Vector2.ZERO
 	_remaining = 0.0
 	var pool := get_parent() as ReusablePool

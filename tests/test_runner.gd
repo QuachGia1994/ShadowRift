@@ -107,11 +107,16 @@ func _test_jump_traversal_contract() -> void:
 func _test_death_respawn_contract() -> void:
 	var hero := Hero.new()
 	root.add_child(hero)
+	# Reproduce a lethal hit arriving on the invisible half of the old blink.
+	hero.visible = false
+	hero._rig.visible = false
 	hero.die()
 	_expect(hero.is_dead() and hero.state == Hero.State.DEATH, "hero death enters terminal animation state")
+	_expect(hero.visible, "lethal damage cannot freeze Hero on an invisible blink frame")
 	hero.respawn_at(Vector2(180.0, 406.0))
 	var snapshot := hero.get_resource_snapshot()
 	_expect(not hero.is_dead() and hero.state == Hero.State.IDLE, "respawn returns hero to playable idle state")
+	_expect(hero.visible and hero._rig.visible and hero.modulate == Color.WHITE, "retry restores Hero and rig visibility")
 	_expect(int(snapshot.health) == int(snapshot.max_health) and int(snapshot.mana) == int(snapshot.max_mana), "respawn restores health and mana")
 	hero.queue_free()
 
@@ -146,7 +151,10 @@ func _test_true_articulated_rig() -> void:
 	hero_rig._player.advance(0.28)
 	var hero_back := _signed_degrees(hero_rig.get_bone_rotation_degrees(&"leg_back"))
 	var hero_front := _signed_degrees(hero_rig.get_bone_rotation_degrees(&"leg_front"))
-	_expect(absf(hero_back - hero_front) >= 20.0, "hero run articulates opposite legs instead of sliding a whole sprite")
+	var back_pose := hero_rig._poses[&"leg_back"] as Node2D
+	var front_pose := hero_rig._poses[&"leg_front"] as Node2D
+	_expect(absf(hero_back) <= 4.0 and absf(hero_front) <= 4.0, "hero run avoids high-angle leg resampling blur")
+	_expect(absf(back_pose.position.x - front_pose.position.x) >= 4.0, "hero run keeps opposite-phase leg translation without sliding a whole sprite")
 	_expect(hero_rig._bones.size() == 6 and hero_rig._sprites.size() == 6, "hero visual uses six independent cutout parts")
 	var boss_rig := CharacterMotionRig2D.new()
 	boss_rig.configure(&"boss")
@@ -213,7 +221,8 @@ func _test_wraith_ranged_homing() -> void:
 	wraith._update_aggro(0.0)
 	_expect(wraith.state == EnemyController.State.ATTACK, "Wraith enters ranged cast inside its preferred band")
 	_expect(not wraith._hitbox.monitoring, "Wraith cast never enables the melee hitbox")
-	wraith._update_attack(0.23)
+	_expect(wraith._attack_time >= 0.70, "Wraith exposes a readable cast telegraph")
+	wraith._update_attack(0.56)
 	var bolt: PooledProjectile = null
 	for child in pool.get_children():
 		if child is PooledProjectile and child.process_mode != Node.PROCESS_MODE_DISABLED:
@@ -221,9 +230,17 @@ func _test_wraith_ranged_homing() -> void:
 			break
 	_expect(is_instance_valid(bolt) and bolt._homing, "Wraith cast launches a pooled homing bolt")
 	if is_instance_valid(bolt):
-		var before := bolt._velocity
+		var before_angle := bolt._velocity.angle()
+		hero.position += Vector2(0.0, -120.0)
 		bolt._physics_process(0.10)
-		_expect(bolt._velocity != before, "homing bolt steers toward the live target")
+		var turn := absf(wrapf(bolt._velocity.angle() - before_angle, -PI, PI))
+		_expect(turn <= PooledProjectile.WRAITH_MAX_TURN_RATE * 0.10 + 0.001, "Wraith bolt turn rate is capped for dodgeability")
+		bolt._physics_process(PooledProjectile.WRAITH_HOMING_TIME)
+		_expect(not bolt._homing, "Wraith bolt stops tracking after a short lock window")
+		var committed_velocity := bolt._velocity
+		hero.position = bolt.global_position - Vector2(180.0, 0.0)
+		bolt._physics_process(0.10)
+		_expect(bolt._velocity.is_equal_approx(committed_velocity), "expired homing bolt cannot U-turn back onto Hero")
 	var ally := EnemyController.new()
 	ally.configure(EnemyController.Kind.WARDEN, hero)
 	ally.position = Vector2(140.0, 400.0)

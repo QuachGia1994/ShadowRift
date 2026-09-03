@@ -194,13 +194,20 @@ func _build_hero_animations(library: AnimationLibrary) -> void:
 		&"arm_back": [-3.0, 2.0, -3.0], &"arm_front": [2.0, -2.0, 2.0],
 	}, {&"body": [Vector2.ZERO, Vector2(0, -3), Vector2.ZERO]})
 	_add_motion(library, &"move", 0.56, true, [0.0, 0.14, 0.28, 0.42, 0.56], {
-		&"body": [4.0, -2.0, -4.0, 2.0, 4.0],
-		&"head": [-3.0, 2.0, 3.0, -2.0, -3.0],
-		&"arm_back": [24.0, 4.0, -24.0, -4.0, 24.0],
-		&"arm_front": [-28.0, -5.0, 28.0, 5.0, -28.0],
-		&"leg_back": [-32.0, -5.0, 30.0, 8.0, -32.0],
-		&"leg_front": [30.0, 8.0, -32.0, -5.0, 30.0],
-	}, {&"body": [Vector2.ZERO, Vector2(0, -4), Vector2.ZERO, Vector2(0, -3), Vector2.ZERO]})
+		&"body": [3.0, -2.0, -3.0, 2.0, 3.0],
+		&"head": [-2.0, 1.0, 2.0, -1.0, -2.0],
+		&"arm_back": [20.0, 4.0, -20.0, -4.0, 20.0],
+		&"arm_front": [-22.0, -5.0, 22.0, 5.0, -22.0],
+		# Rotating painted leg cutouts by ~30 degrees resamples their soft alpha
+		# into a visible blur. Keep leg rotation nearly neutral and sell the gait
+		# with opposite-phase translation instead.
+		&"leg_back": [-3.0, -1.0, 3.0, 1.0, -3.0],
+		&"leg_front": [3.0, 1.0, -3.0, -1.0, 3.0],
+	}, {
+		&"body": [Vector2.ZERO, Vector2(0, -3), Vector2.ZERO, Vector2(0, -2), Vector2.ZERO],
+		&"leg_back": [Vector2(3, 0), Vector2(1, 2), Vector2(-3, 0), Vector2(-1, -1), Vector2(3, 0)],
+		&"leg_front": [Vector2(-3, 0), Vector2(-1, -1), Vector2(3, 0), Vector2(1, 2), Vector2(-3, 0)],
+	})
 	_add_motion(library, &"jump_rise", 0.28, false, [0.0, 0.28], {
 		&"body": [-4.0, -7.0], &"head": [3.0, 7.0], &"arm_back": [10.0, 22.0],
 		&"arm_front": [-14.0, -26.0], &"leg_back": [-12.0, -28.0], &"leg_front": [18.0, 34.0],
@@ -262,7 +269,7 @@ func _build_wraith_animations(library: AnimationLibrary) -> void:
 		&"body": [-12.0, -20.0, 14.0, 0.0], &"arm_back": [18.0, 32.0, -14.0, 0.0],
 		&"arm_front": [-22.0, -38.0, 18.0, 0.0], &"leg_back": [-12.0, -20.0, 10.0, 0.0], &"leg_front": [12.0, 20.0, -10.0, 0.0],
 	}, {&"body": [Vector2(-3, 0), Vector2(-8, 0), Vector2(10, 0), Vector2.ZERO]})
-	_add_motion(library, &"cast", 0.52, false, [0.0, 0.20, 0.32, 0.52], {
+	_add_motion(library, &"cast", 0.72, false, [0.0, 0.28, 0.54, 0.72], {
 		&"body": [-3.0, -8.0, 5.0, 0.0], &"head": [2.0, 7.0, -4.0, 0.0],
 		&"arm_back": [-12.0, -46.0, -18.0, -8.0], &"arm_front": [14.0, 52.0, 24.0, 8.0],
 		&"leg_back": [-6.0, -12.0, 4.0, 0.0], &"leg_front": [7.0, 13.0, -4.0, 0.0],

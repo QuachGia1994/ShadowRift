@@ -184,6 +184,8 @@ def main() -> int:
     require("CharacterMotionRig2D" in player and "AnimatedSprite2D" not in player and "hero_frames.tres" not in player, "hero must render through the articulated motion rig")
     require("Skeleton2D" in rig and "Bone2D" in rig and "AnimationPlayer" in rig and "leg_back" in rig and "leg_front" in rig, "native articulated rig contract missing")
     require("attack1" in rig and "attack2" in rig and "jump_rise" in rig and "fall" in rig and "land" in rig, "hero articulated animation states missing")
+    require('&"leg_back": [-3.0, -1.0, 3.0, 1.0, -3.0]' in rig and '&"leg_front": [3.0, 1.0, -3.0, -1.0, 3.0]' in rig, "hero locomotion leg rotation must stay low-angle to avoid cutout smear")
+    require('&"leg_back": [Vector2(3, 0)' in rig and '&"leg_front": [Vector2(-3, 0)' in rig, "hero locomotion opposite-phase leg translation missing")
     require("COYOTE_TIME" in player and "JUMP_BUFFER_TIME" in player, "mobile traversal jump tuning missing")
     require("GRAVITY_RISE" in player and "GRAVITY_FALL" in player and "JUMP_CUT_FACTOR" in player and "TURN_BOOST" in player, "donor player game-feel constants missing")
     require("MovingPlatform" in (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8") or "LevelManager" in (ROOT / "scripts/world/game_world.gd").read_text(encoding="utf-8"), "data-driven level manager missing from game world")
@@ -244,6 +246,7 @@ def main() -> int:
     require("StageCatalog.count()" in world and "_load_stage" in world, "three-stage progression flow missing")
     require("_on_hero_died" in world and "_enter_defeat_state" in world and "_retry_from_defeat" in world and "respawn_at" in world, "explicit death/retry flow missing")
     require("_run_defeated" in world and "set_gameplay_enabled(false)" in world, "defeat input lock missing")
+    require("visible = true" in player and "_rig.visible = true" in player and "modulate = Color.WHITE" in player, "death/retry visibility recovery missing")
     require('payload["health"] = int(snapshot.max_health)' in world, "dead-safe persistence recovery missing")
     require("_load_progress()" in world and "_save_progress()" in world, "local mobile persistence flow missing")
     require("reset_inputs()" in world and "NOTIFICATION_APPLICATION_FOCUS_OUT" in world, "world lifecycle reset missing")
@@ -256,6 +259,9 @@ def main() -> int:
 
     projectile = (ROOT / "scripts/performance/projectile.gd").read_text(encoding="utf-8")
     require("skill_two_projectile.png" in projectile and "wraith_bolt.png" in projectile and "activate_homing" in projectile and "func _draw()" not in projectile, "projectile must support player rift bolt plus Wraith homing bolt textures")
+    require("WRAITH_HOMING_TIME := 0.38" in projectile and "WRAITH_SPEED := 285.0" in projectile and "WRAITH_MAX_TURN_RATE" in projectile, "Wraith projectile dodgeability limits missing")
+    require("_homing_remaining" in projectile and "_target = null" in projectile, "Wraith homing must expire into committed ballistic travel")
+    require("_attack_time = 0.72" in enemies and "_attack_cooldown = 1.55" in enemies, "Wraith readable cast telegraph/cooldown missing")
 
     tests = (ROOT / "tests/test_runner.gd").read_text(encoding="utf-8")
     require("PASS: 29 behavior tests" in tests and "_test_full_scene_boot_and_pause" in tests, "Godot runtime coverage missing")
