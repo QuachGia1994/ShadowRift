@@ -14,6 +14,7 @@ func _ready() -> void:
     monitoring = true
     _create_visuals()
     body_entered.connect(_on_body_entered)
+    body_exited.connect(_on_body_exited)
 
 func _create_visuals() -> void:
     _visual = Sprite2D.new()
@@ -40,3 +41,7 @@ func _on_body_entered(body: Node2D) -> void:
         return
     _triggered = true
     exit_reached.emit()
+
+func _on_body_exited(body: Node2D) -> void:
+    if body is Hero:
+        _triggered = false

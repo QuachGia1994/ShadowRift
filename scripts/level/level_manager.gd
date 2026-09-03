@@ -73,16 +73,37 @@ func count() -> int:
     return _configs.size()
 
 func to_save_payload() -> Dictionary:
-    return {"stage_index": current_index, "checkpoint": last_checkpoint_position, "has_checkpoint": has_checkpoint}
+    # JSON has no native Vector2 type. Persist coordinates explicitly so the
+    # checkpoint survives stringify/parse without becoming an opaque String.
+    return {
+        "stage_index": current_index,
+        "checkpoint": {"x": last_checkpoint_position.x, "y": last_checkpoint_position.y},
+        "has_checkpoint": has_checkpoint,
+    }
 
 func restore_from_payload(payload: Dictionary) -> void:
     if payload.has("stage_index"):
         set_stage(int(payload["stage_index"]))
         if bool(payload.get("has_checkpoint", false)) and payload.has("checkpoint"):
-            var cp = payload["checkpoint"]
-            if cp is Vector2:
-                last_checkpoint_position = cp
+            var cp: Variant = _checkpoint_from_variant(payload["checkpoint"])
+            if cp != null:
+                last_checkpoint_position = cp as Vector2
                 has_checkpoint = true
-            elif cp is Dictionary and cp.has("x"):
-                last_checkpoint_position = Vector2(float(cp.x), float(cp.y))
-                has_checkpoint = true
+
+func _checkpoint_from_variant(value: Variant) -> Variant:
+    if value is Vector2:
+        return value
+    if value is Dictionary and value.has("x") and value.has("y"):
+        return Vector2(float(value.x), float(value.y))
+    if value is String:
+        # Compatibility with schema-2 files written before checkpoint JSON
+        # normalization, where JSON.stringify(Vector2) produced a String.
+        var parsed: Variant = str_to_var(value)
+        if parsed is Vector2:
+            return parsed
+        var text := String(value).strip_edges()
+        if text.begins_with("(") and text.ends_with(")"):
+            var components := text.substr(1, text.length() - 2).split(",")
+            if components.size() == 2 and components[0].strip_edges().is_valid_float() and components[1].strip_edges().is_valid_float():
+                return Vector2(components[0].strip_edges().to_float(), components[1].strip_edges().to_float())
+    return null

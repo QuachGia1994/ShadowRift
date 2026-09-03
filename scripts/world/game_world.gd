@@ -27,6 +27,8 @@ var _stage_remaining := 0
 var _stage_clear := false
 var _respawning := false
 var _transitioning := false
+var _advancing_stage := false
+var _stage_advance_token := 0
 var _run_defeated := false
 var _level_manager: LevelManager
 # StageCatalog.count() verification shim
@@ -155,7 +157,7 @@ func _on_hero_died() -> void:
     if is_instance_valid(_controls):
         _controls.set_gameplay_enabled(false)
     # Let the authored death animation finish before exposing the recovery choice.
-    get_tree().create_timer(0.66).timeout.connect(_enter_defeat_state)
+    get_tree().create_timer(0.66, false).timeout.connect(_enter_defeat_state)
 
 func _enter_defeat_state() -> void:
     if not is_instance_valid(_hero) or not _hero.is_dead() or _transitioning:
@@ -212,6 +214,7 @@ func _load_stage(index: int, with_transition: bool = true, preserve_checkpoint: 
     if _transitioning:
         return
     _transitioning = true
+    _stage_advance_token += 1
     var prev_index := _stage_index
     _stage_index = clampi(index, 0, (_level_manager.count() - 1) if _level_manager else 2)
     if _level_manager:
@@ -256,6 +259,7 @@ func _load_stage(index: int, with_transition: bool = true, preserve_checkpoint: 
     if with_transition:
         await _play_transition(prev_index, _stage_index)
     _transitioning = false
+    _advancing_stage = false
 
 func _spawn_enemies_from_config(config: LevelConfig) -> void:
     if config == null or not is_instance_valid(_stage_root):
@@ -296,7 +300,7 @@ func _on_boss_death_finished() -> void:
     _stage_clear = true
     if is_instance_valid(_hud):
         _hud.show_banner("RIFT SEALED", "Run complete", 1.0)
-    get_tree().create_timer(1.2).timeout.connect(_advance_or_complete)
+    _schedule_stage_advance(1.2)
 
 func _on_checkpoint_reached(id: StringName, pos: Vector2) -> void:
     if _level_manager:
@@ -316,16 +320,34 @@ func _on_run_completed() -> void:
 
 func _on_exit_reached() -> void:
     if _stage_clear or _stage_remaining <= 0:
+        # Invalidate any delayed completion callback already scheduled for this
+        # stage before accepting the explicit exit interaction.
+        _stage_advance_token += 1
         _advance_or_complete()
     else:
-        # require clearing enemies before exit
+        # LevelExit resets itself when Hero leaves, so it can be entered again
+        # after the remaining enemies are cleared.
         pass
 
 func _advance_or_complete() -> void:
+    if _advancing_stage or _transitioning:
+        return
+    _advancing_stage = true
     if _level_manager and _level_manager.advance_stage():
         _load_stage(_level_manager.current_index, true)
     else:
+        _advancing_stage = false
         _on_run_completed()
+
+func _schedule_stage_advance(delay: float) -> void:
+    _stage_advance_token += 1
+    var token := _stage_advance_token
+    var scheduled_stage := _stage_index
+    get_tree().create_timer(delay, false).timeout.connect(func() -> void:
+        if token != _stage_advance_token or scheduled_stage != _stage_index:
+            return
+        _advance_or_complete()
+    )
 
 func _check_stage_complete() -> void:
     if _stage_remaining <= 0 and not _stage_clear:
@@ -333,16 +355,16 @@ func _check_stage_complete() -> void:
         var cfg := _level_manager.get_current() if _level_manager else null
         if cfg == null or not cfg.has_boss:
             _stage_clear = true
-            get_tree().create_timer(0.7).timeout.connect(_advance_or_complete)
+            _schedule_stage_advance(0.7)
 
 func _play_transition(from: int, to: int) -> void:
     if not is_instance_valid(_hud):
-        await get_tree().create_timer(0.12).timeout
+        await get_tree().create_timer(0.12, false).timeout
         return
     var config := _level_manager.get_config(to) if _level_manager else null
     var stage_name := config.display_name if config else "NEXT RIFT"
     _hud.show_banner("STAGE %d" % (to + 1), stage_name, 0.28)
-    await get_tree().create_timer(0.28).timeout
+    await get_tree().create_timer(0.28, false).timeout
 
 func _toggle_user_pause() -> void:
     if _run_defeated:

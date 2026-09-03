@@ -118,5 +118,10 @@ func _on_area_entered(area: Area2D) -> void:
 	_hit_ids[target_id] = true
 	var authority := get_tree().get_first_node_in_group("combat_authority") as CombatAuthority
 	if is_instance_valid(authority) and authority.resolve_projectile_hit(actor, hurtbox.actor, attack_kind):
-		deactivate()
+		# Area callbacks run while physics queries are being flushed. Stop the
+		# projectile immediately, but defer changing monitoring/pool state until
+		# the callback has unwound.
+		_remaining = 0.0
+		set_deferred("monitoring", false)
+		call_deferred("deactivate")
 

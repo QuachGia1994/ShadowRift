@@ -33,8 +33,9 @@ func _enter_tree() -> void:
 func _on_body_entered(body: Node2D) -> void:
     if not body is Hero:
         return
-    var authority := get_tree().get_first_node_in_group("combat_authority") as CombatAuthority
-    if is_instance_valid(authority):
-        authority.resolve_environment_hit(body, damage, Vector2.ZERO)
-    elif body.has_method("die"):
-        body.die()
+    var hero := body as Hero
+    if hero.is_dead():
+        return
+    # A death plane must be terminal. Finite damage lets a healthy Hero fall
+    # through the 48 px Area2D and continue forever below the camera bounds.
+    hero.die()

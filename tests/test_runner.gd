@@ -456,6 +456,7 @@ func _test_production_resources_load() -> void:
 		_expect(load(path) is Texture2D, "production texture loads: %s" % path)
 
 func _test_full_scene_boot_and_pause() -> void:
+	_remove_runtime_test_save()
 	var packed := load("res://scenes/game.tscn") as PackedScene
 	_expect(packed != null, "main game scene loads")
 	if packed == null:
@@ -498,8 +499,10 @@ func _test_full_scene_boot_and_pause() -> void:
 	_expect(not paused and not game._hud._paused, "resume restores gameplay")
 	game.queue_free()
 	await process_frame
+	_remove_runtime_test_save()
 
 func _test_defeat_retry_flow() -> void:
+	_remove_runtime_test_save()
 	var packed := load("res://scenes/game.tscn") as PackedScene
 	_expect(packed != null, "main game scene loads for defeat/retry test")
 	if packed == null:
@@ -521,6 +524,12 @@ func _test_defeat_retry_flow() -> void:
 	_expect(not game._hud._defeat_overlay.visible and game._controls._gameplay_enabled, "retry dismisses defeat UI and restores controls")
 	game.queue_free()
 	await process_frame
+	_remove_runtime_test_save()
+
+func _remove_runtime_test_save() -> void:
+	var path := ProjectSettings.globalize_path("user://shadow_rift_save.json")
+	if FileAccess.file_exists("user://shadow_rift_save.json"):
+		DirAccess.remove_absolute(path)
 
 func _test_donor_jump_feel() -> void:
 	var hero := Hero.new()
@@ -576,18 +585,16 @@ func _test_killzone_recovery() -> void:
 	kill.position = Vector2(600, 620)
 	kill.configure(Vector2(200, 40))
 	root.add_child(kill)
-	var authority := CombatAuthority.new()
-	root.add_child(authority)
 	var hero := Hero.new()
 	root.add_child(hero)
 	hero.position = Vector2(600, 620)
 	kill._on_body_entered(hero)
-	_expect(true, "killzone triggers without deadlock")
+	_expect(hero.is_dead(), "death-plane Killzone is terminal and cannot let Hero fall forever")
 	kill.queue_free()
-	authority.queue_free()
 	hero.queue_free()
 
 func _test_stage_transition_no_duplicates() -> void:
+	_remove_runtime_test_save()
 	var packed := load("res://scenes/game.tscn") as PackedScene
 	if packed == null:
 		_expect(false, "main game scene loads for transition test")
@@ -600,20 +607,59 @@ func _test_stage_transition_no_duplicates() -> void:
 		if n is Hero:
 			hero_count_before += 1
 	_expect(hero_count_before == 1, "stage has single hero before transition")
-	game._load_stage(1, false)
-	await game.get_tree().process_frame
+	# Reproduce the old race: a delayed clear callback and an explicit exit
+	# arrive for the same stage. The stale timer must not advance a second time.
+	game._stage_remaining = 0
+	game._stage_clear = true
+	game._schedule_stage_advance(0.05)
+	game._on_exit_reached()
+	await game.get_tree().create_timer(0.36).timeout
+	_expect(game._stage_index == 1 and game._level_manager.current_index == 1, "timer plus exit advances exactly one stage")
 	_expect(is_instance_valid(game._hero), "hero persists after stage transition")
-	_expect(not game._transitioning, "transition flag clears")
+	_expect(not game._transitioning and not game._advancing_stage, "transition and advance guards clear")
 	var hud_nodes := game.get_tree().get_nodes_in_group("hud")
 	_expect(hud_nodes.size() == 1, "no duplicate HUD after transition")
 	var ctrl_nodes := game.get_tree().get_nodes_in_group("mobile_controls")
 	_expect(ctrl_nodes.size() == 1, "no duplicate MobileControls after transition")
+	var exit := LevelExit.new()
+	game.add_child(exit)
+	exit._on_body_entered(game._hero)
+	_expect(exit._triggered, "level exit arms on Hero entry")
+	exit._on_body_exited(game._hero)
+	_expect(not exit._triggered, "level exit re-arms after rejected early entry and leave")
 	game.queue_free()
 	await game.get_tree().process_frame
+	_remove_runtime_test_save()
 
 func _test_save_migration() -> void:
 	var repo := SaveRepository.new()
 	repo.save_path = "user://shadow_rift_test_migrate.json"
+	var manager := LevelManager.new()
+	root.add_child(manager)
+	manager.activate_checkpoint(&"roundtrip", Vector2(777.5, 321.25))
+	var current_payload := {"level": 2, "experience": 10, "experience_to_next": 100, "gold": 5, "mana": 80, "health": 70, "equipment": {"weapon": "rust_blade", "armor": "ash_vest"}}
+	for key in manager.to_save_payload():
+		current_payload[key] = manager.to_save_payload()[key]
+	_expect(current_payload.checkpoint is Dictionary, "checkpoint persists as JSON-safe coordinates")
+	_expect(repo.save_game(current_payload).ok, "schema-v2 checkpoint save writes")
+	var roundtrip := repo.load_game()
+	_expect(roundtrip.ok, "schema-v2 checkpoint survives JSON stringify/parse")
+	var restored := LevelManager.new()
+	root.add_child(restored)
+	restored.restore_from_payload(roundtrip.payload)
+	_expect(restored.has_checkpoint and restored.last_checkpoint_position.is_equal_approx(Vector2(777.5, 321.25)), "checkpoint restores exact coordinates after disk round-trip")
+	# Compatibility with schema-2 files produced before JSON-safe checkpoint
+	# serialization: checkpoint was stringified from Vector2.
+	var legacy_v2 := current_payload.duplicate(true)
+	legacy_v2["checkpoint"] = str(Vector2(777.5, 321.25))
+	var legacy_wrapper := {"schema": 2, "payload": legacy_v2, "checksum": repo.checksum_for(legacy_v2)}
+	var legacy_file := FileAccess.open(repo.save_path, FileAccess.WRITE)
+	legacy_file.store_string(JSON.stringify(legacy_wrapper))
+	legacy_file.close()
+	var legacy_loaded := repo.load_game()
+	_expect(legacy_loaded.ok, "legacy schema-v2 string checkpoint remains loadable")
+	manager.queue_free()
+	restored.queue_free()
 	var v1_payload := {"level": 2, "experience": 10, "experience_to_next": 100, "gold": 5, "mana": 80, "health": 70, "equipment": {"weapon": "rust_blade", "armor": "ash_vest"}}
 	_expect(repo.save_game(v1_payload).ok, "v1 save writes")
 	var file := FileAccess.open(repo.save_path, FileAccess.READ)

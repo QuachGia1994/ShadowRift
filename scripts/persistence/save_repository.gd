@@ -93,8 +93,8 @@ func validate_payload(payload: Dictionary) -> Dictionary:
         if si < 0 or si > 10:
             return {"ok": false, "error": "save_stage_out_of_range"}
     if payload.has("has_checkpoint") and payload.has("checkpoint"):
-        var cp = payload.checkpoint
-        if not (cp is Vector2 or cp is Dictionary):
+        var cp: Variant = payload.checkpoint
+        if _checkpoint_to_vector(cp) == null:
             return {"ok": false, "error": "save_checkpoint_invalid"}
     return {"ok": true}
 
@@ -110,8 +110,31 @@ func _migrate_v1_to_v2(payload: Dictionary) -> Dictionary:
 
 func _canonical_payload(payload: Dictionary) -> String:
     var equipment := payload.equipment as Dictionary
-    var parts := [int(payload.level), int(payload.experience), int(payload.experience_to_next), int(payload.gold), int(payload.mana), int(payload.health), str(equipment.weapon), str(equipment.armor), int(payload.get("stage_index", 0)), str(bool(payload.get("has_checkpoint", false))), str(payload.get("checkpoint", Vector2.ZERO))]
+    var checkpoint: Variant = _checkpoint_to_vector(payload.get("checkpoint", Vector2.ZERO))
+    if checkpoint == null:
+        checkpoint = Vector2.ZERO
+    # Keep the historical Vector2 string form in the checksum so existing
+    # schema-2 saves remain valid even though new files persist {x,y} JSON.
+    var parts := [int(payload.level), int(payload.experience), int(payload.experience_to_next), int(payload.gold), int(payload.mana), int(payload.health), str(equipment.weapon), str(equipment.armor), int(payload.get("stage_index", 0)), str(bool(payload.get("has_checkpoint", false))), str(checkpoint)]
     return JSON.stringify(parts)
+
+func _checkpoint_to_vector(value: Variant) -> Variant:
+    if value is Vector2:
+        return value
+    if value is Dictionary and value.has("x") and value.has("y"):
+        return Vector2(float(value.x), float(value.y))
+    if value is String:
+        var parsed: Variant = str_to_var(value)
+        if parsed is Vector2:
+            return parsed
+        # JSON.stringify(Vector2) in older schema-2 saves produced the plain
+        # string form "(x, y)", which str_to_var() does not understand.
+        var text := String(value).strip_edges()
+        if text.begins_with("(") and text.ends_with(")"):
+            var components := text.substr(1, text.length() - 2).split(",")
+            if components.size() == 2 and components[0].strip_edges().is_valid_float() and components[1].strip_edges().is_valid_float():
+                return Vector2(components[0].strip_edges().to_float(), components[1].strip_edges().to_float())
+    return null
 
 func _canonical_payload_legacy(payload: Dictionary) -> String:
     var equipment := payload.equipment as Dictionary
